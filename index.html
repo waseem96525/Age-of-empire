@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asian Dynasty - RTS</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="game-container">
+  <canvas id="gameCanvas"></canvas>
+  <div id="ui-overlay">
+    <div id="resource-bar" class="resource-bar">
+      <div class="resource food"><span class="res-label">F</span><span class="res-name">Food</span><span class="res-value" id="food-val">500</span></div>
+      <div class="resource wood"><span class="res-label">W</span><span class="res-name">Wood</span><span class="res-value" id="wood-val">300</span></div>
+      <div class="resource gold"><span class="res-label">G</span><span class="res-name">Gold</span><span class="res-value" id="gold-val">200</span></div>
+      <div class="resource stone"><span class="res-label">S</span><span class="res-name">Stone</span><span class="res-value" id="stone-val">150</span></div>
+      <div class="resource pop"><span class="res-label">P</span><span class="res-name">Population</span><span class="res-value" id="pop-val">0/100</span></div>
+    </div>
+    <div id="build-panel" class="build-panel">
+      <div class="panel-section">
+        <h3>Buildings</h3>
+        <div class="build-buttons" id="building-buttons"></div>
+      </div>
+      <div class="panel-section">
+        <h3>Units</h3>
+        <div class="build-buttons" id="unit-buttons"></div>
+      </div>
+    </div>
+    <div id="action-bar" class="action-bar">
+      <div id="selected-info"></div>
+      <div id="game-log"></div>
+    </div>
+    <div id="minimap-container" class="minimap-container">
+      <canvas id="minimapCanvas" width="200" height="150"></canvas>
+    </div>
+    <div class="mobile-controls" aria-label="Mobile game controls">
+      <button id="cancel-build-btn" type="button" title="Cancel building placement">Cancel Build</button>
+      <div class="camera-controls">
+        <button type="button" data-camera="up" aria-label="Move camera up">&#9650;</button>
+        <button type="button" data-camera="left" aria-label="Move camera left">&#9664;</button>
+        <button type="button" data-camera="down" aria-label="Move camera down">&#9660;</button>
+        <button type="button" data-camera="right" aria-label="Move camera right">&#9654;</button>
+      </div>
+      <div class="zoom-controls">
+        <button type="button" data-zoom="in" aria-label="Zoom in">+</button>
+        <button type="button" data-zoom="out" aria-label="Zoom out">-</button>
+      </div>
+    </div>
+    <div class="help-panel">
+      <details open>
+        <summary>How to Play</summary>
+        <div class="help-content">
+          <p><strong>Gather:</strong> select Peasants, then right-click resources.</p>
+          <p><strong>Build:</strong> choose a building, then left-click clear ground.</p>
+          <p><strong>Train:</strong> Town Centers make Peasants; Barracks make Warriors, Archers, and Samurai; Stables make Cavalry.</p>
+          <p><strong>Command:</strong> select units, then right-click to move or attack.</p>
+          <p class="mobile-help"><strong>Mobile:</strong> tap units to select, tap a destination, resource, or enemy to command, and drag the map to pan.</p>
+          <p><strong>Win:</strong> destroy all enemy Town Centers.</p>
+          <div class="resource-editor">
+            <h4>Set Resources</h4>
+            <label>Food <input id="resource-food" type="number" min="0" max="9999" step="25" value="500"></label>
+            <label>Wood <input id="resource-wood" type="number" min="0" max="9999" step="25" value="300"></label>
+            <label>Gold <input id="resource-gold" type="number" min="0" max="9999" step="25" value="200"></label>
+            <label>Stone <input id="resource-stone" type="number" min="0" max="9999" step="25" value="150"></label>
+            <button id="apply-resources-btn" type="button">Apply Resources</button>
+          </div>
+        </div>
+      </details>
+    </div>
+    <div id="tooltip" class="hidden"></div>
+    <div id="start-screen">
+      <div class="title-screen">
+        <h1>Asian Dynasty</h1>
+        <p>Build your empire. Conquer the land.</p>
+        <button id="start-btn" class="start-btn">Begin Your Dynasty</button>
+        <div class="controls-info">
+          <h3>Controls</h3>
+          <p>Left Click: Select units and place buildings</p>
+          <p>Right Click: Move, gather, attack, or cancel building</p>
+          <p>WASD: Move Camera</p>
+          <p>Scroll: Zoom</p>
+          <p>1-7: Build Mode</p>
+          <p>Mobile: Tap units, then tap a target. Drag the map to pan.</p>
+        </div>
+        <div class="how-to-play">
+          <h3>How to Play</h3>
+          <ol>
+            <li>Use Peasants to gather food, wood, gold, and stone.</li>
+            <li>Place resource buildings to grow your economy, then construct a Barracks or Stable for military units.</li>
+            <li>Select your units, then right-click a destination, resource, or enemy to command them.</li>
+            <li>Destroy every enemy Town Center to win. Protect your own Town Center to avoid defeat.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+    <div id="game-over-screen" class="hidden">
+      <div class="game-over-content">
+        <h1 id="game-over-text"></h1>
+        <button id="restart-btn" class="start-btn">Play Again</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="game.js"></script>
+<script src="map.js"></script>
+<script src="resources.js"></script>
+<script src="buildings.js"></script>
+<script src="units.js"></script>
+<script src="ai.js"></script>
+<script src="ui.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
