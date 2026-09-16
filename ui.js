@@ -19,7 +19,8 @@ function updateUI() {
   } else if (gameState.selectedBuilding) {
     const b = gameState.selectedBuilding;
     const def = BUILDINGS[b.type];
-    selectedInfo.innerHTML = `<h4>${def.name}</h4><p>HP: ${Math.floor(b.hp)}/${b.maxHp}</p><p>Queue: ${b.produceQueue.length > 0 ? UNITS[b.produceQueue[0].toUpperCase()].name : "Empty"}</p>`;
+    const rallyHint = def.produces.length > 0 ? "<p>Right-click map to set rally point</p>" : "";
+    selectedInfo.innerHTML = `<h4>${def.name}</h4><p>HP: ${Math.floor(b.hp)}/${b.maxHp}</p><p>Queue: ${b.produceQueue.length > 0 ? UNITS[b.produceQueue[0].toUpperCase()].name : "Empty"}</p>${rallyHint}`;
   } else {
     selectedInfo.innerHTML = `<h4>No Selection</h4><p>Click units or buildings to select</p>`;
   }
@@ -72,7 +73,7 @@ function initializeResourceEditor() {
 function updateBuildButtons() {
   const buildingBtns = document.getElementById("building-buttons");
   const unitBtns = document.getElementById("unit-buttons");
-  const types = ["TOWN_CENTER", "BARRACKS", "FARM", "LUMBER_CAMP", "MINE", "WALL", "STABLE"];
+  const types = ["TOWN_CENTER", "HOUSE", "BARRACKS", "FARM", "LUMBER_CAMP", "MINE", "WALL", "STABLE"];
   const unitTypes = ["peasant", "samurai", "archer", "cavalry", "warrior"];
 
   if (!buildingBtns.dataset.initialized) {

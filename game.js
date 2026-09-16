@@ -9,6 +9,7 @@ const TILE = { GRASS: 0, WATER: 1, FOREST: 2, MOUNTAIN: 3, SAND: 4, PATH: 5 };
 
 const BUILDINGS = {
   TOWN_CENTER: { name: "Town Center", cost: { food: 100, wood: 100, gold: 0, stone: 50 }, hp: 1000, radius: 3, produces: ["peasant"], pop: 50 },
+  HOUSE: { name: "House", cost: { food: 0, wood: 50, gold: 0, stone: 0 }, hp: 200, radius: 1, produces: [], pop: 10 },
   BARRACKS: { name: "Barracks", cost: { food: 150, wood: 200, gold: 50, stone: 100 }, hp: 600, radius: 2, produces: ["samurai", "archer", "warrior"] },
   FARM: { name: "Farm", cost: { food: 50, wood: 100, gold: 0, stone: 50 }, hp: 300, radius: 2, produces: ["food"] },
   LUMBER_CAMP: { name: "Lumber Camp", cost: { food: 50, wood: 100, gold: 0, stone: 50 }, hp: 300, radius: 2, produces: ["wood"] },
@@ -45,7 +46,7 @@ let gameState = {
   keys: {},
   resources: { food: 500, wood: 300, gold: 200, stone: 150 },
   population: 0,
-  maxPopulation: 100,
+  maxPopulation: 50,
   playerIndex: 0,
   buildings: [],
   units: [],
@@ -63,7 +64,7 @@ let gameState = {
 function initGameState() {
   gameState.resources = { food: 500, wood: 300, gold: 200, stone: 150 };
   gameState.population = 0;
-  gameState.maxPopulation = 100;
+  gameState.maxPopulation = 0;
   gameState.buildings = [];
   gameState.units = [];
   gameState.selectedUnits = [];

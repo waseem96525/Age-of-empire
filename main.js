@@ -43,7 +43,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key.toLowerCase() === "escape") setBuildMode(null);
   if (e.key >= "1" && e.key <= "7") {
     const idx = parseInt(e.key) - 1;
-    const types = ["TOWN_CENTER", "BARRACKS", "FARM", "LUMBER_CAMP", "MINE", "WALL", "STABLE"];
+    const types = ["TOWN_CENTER", "HOUSE", "BARRACKS", "FARM", "LUMBER_CAMP", "MINE", "WALL", "STABLE"];
     if (types[idx]) setBuildMode(types[idx]);
   }
 });
@@ -253,6 +253,12 @@ function handleRightClick() {
   const world = getScreenToWorld(mouseX, mouseY);
   const wx = world.x;
   const wy = world.y;
+  if (gameState.selectedBuilding && gameState.selectedBuilding.playerIndex === 0 && BUILDINGS[gameState.selectedBuilding.type].produces.length > 0) {
+    gameState.selectedBuilding.rallyX = clamp(wx, 0, MAP_WIDTH - 1);
+    gameState.selectedBuilding.rallyY = clamp(wy, 0, MAP_HEIGHT - 1);
+    addNotification(`${BUILDINGS[gameState.selectedBuilding.type].name} rally point set`);
+    return;
+  }
   if (gameState.selectedUnits.length > 0) {
     const enemyUnit = gameState.units.find(u =>
       u.playerIndex !== 0 && u.alive &&
@@ -268,6 +274,13 @@ function handleRightClick() {
         else unitAttack(unit, "building", enemyBuilding.id);
       }
     } else {
+      const friendlyBuilding = gameState.buildings.find(b =>
+        b.playerIndex === 0 && b.hp < b.maxHp && distance(wx, wy, b.x, b.y) < 2
+      );
+      if (friendlyBuilding) {
+        for (const unit of gameState.selectedUnits) unitRepair(unit, friendlyBuilding.id);
+        return;
+      }
       const res = gameState.resourcesOnMap.find(r =>
         !r.depleted && distance(wx, wy, r.x, r.y) <= 3
       );
