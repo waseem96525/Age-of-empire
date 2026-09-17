@@ -10,7 +10,7 @@ const TILE = { GRASS: 0, WATER: 1, FOREST: 2, MOUNTAIN: 3, SAND: 4, PATH: 5 };
 const BUILDINGS = {
   TOWN_CENTER: { name: "Town Center", cost: { food: 100, wood: 100, gold: 0, stone: 50 }, hp: 1000, radius: 3, produces: ["peasant"], pop: 50 },
   HOUSE: { name: "House", cost: { food: 0, wood: 50, gold: 0, stone: 0 }, hp: 200, radius: 1, produces: [], pop: 10 },
-  BARRACKS: { name: "Barracks", cost: { food: 150, wood: 200, gold: 50, stone: 100 }, hp: 600, radius: 2, produces: ["samurai", "archer", "warrior"] },
+  BARRACKS: { name: "Barracks", cost: { food: 150, wood: 200, gold: 50, stone: 100 }, hp: 600, radius: 2, produces: ["samurai", "archer", "warrior", "spearman"] },
   FARM: { name: "Farm", cost: { food: 50, wood: 100, gold: 0, stone: 50 }, hp: 300, radius: 2, produces: ["food"] },
   LUMBER_CAMP: { name: "Lumber Camp", cost: { food: 50, wood: 100, gold: 0, stone: 50 }, hp: 300, radius: 2, produces: ["wood"] },
   MINE: { name: "Mine", cost: { food: 100, wood: 50, gold: 100, stone: 100 }, hp: 400, radius: 2, produces: ["gold", "stone"] },
@@ -19,11 +19,12 @@ const BUILDINGS = {
 };
 
 const UNITS = {
-  PEASANT: { name: "Peasant", hp: 80, attack: 5, armor: 0, speed: 1.5, cost: { food: 50 }, pop: 1, symbol: "P", color: "#8B7355", range: 0.8 },
-  WARRIOR: { name: "Warrior", hp: 120, attack: 12, armor: 2, speed: 1.3, cost: { food: 60, wood: 40 }, pop: 1, symbol: "W", color: "#8B0000", range: 0.8 },
-  ARCHER: { name: "Archer", hp: 80, attack: 14, armor: 1, speed: 1.3, cost: { food: 80, wood: 50 }, pop: 1, symbol: "A", color: "#2E8B57", range: 3.5 },
-  SAMURAI: { name: "Samurai", hp: 160, attack: 18, armor: 4, speed: 1.2, cost: { food: 100, gold: 60 }, pop: 2, symbol: "S", color: "#C41E3A", range: 0.8 },
-  CAVALRY: { name: "Cavalry", hp: 130, attack: 22, armor: 2, speed: 2.1, cost: { food: 120, gold: 80 }, pop: 2, symbol: "C", color: "#4169E1", range: 0.8 }
+  PEASANT: { name: "Peasant", hp: 80, attack: 5, armor: 0, speed: 1.5, cost: { food: 50 }, pop: 1, symbol: "P", color: "#8B7355", range: 0.8, tierColors: ["#8B7355", "#b84040", "#4a6fa5", "#3a7a3a"], tierWeapons: ["hoe", "axe", "pickaxe", "pickaxe"] },
+  WARRIOR: { name: "Warrior", hp: 120, attack: 12, armor: 2, speed: 1.3, cost: { food: 60, wood: 40 }, pop: 1, symbol: "W", color: "#8B0000", range: 0.8, tierColors: ["#8B0000", "#a03030", "#3a5a8a", "#2a4a7a"], tierWeapons: ["sword", "sword", "sword+shield", "sword+shield"] },
+  ARCHER: { name: "Archer", hp: 80, attack: 14, armor: 1, speed: 1.3, cost: { food: 80, wood: 50 }, pop: 1, symbol: "A", color: "#2E8B57", range: 3.5, tierColors: ["#2E8B57", "#2a7a4a", "#3a6a3a", "#2a5a2a"], tierWeapons: ["bow", "bow", "bow", "greatbow"] },
+  SAMURAI: { name: "Samurai", hp: 160, attack: 18, armor: 4, speed: 1.2, cost: { food: 100, gold: 60 }, pop: 2, symbol: "S", color: "#C41E3A", range: 0.8, tierColors: ["#C41E3A", "#a02030", "#8a1828", "#7a1520"], tierWeapons: ["katana", "katana", "katana", "katana"] },
+  CAVALRY: { name: "Cavalry", hp: 130, attack: 22, armor: 2, speed: 2.1, cost: { food: 120, gold: 80 }, pop: 2, symbol: "C", color: "#4169E1", range: 0.8, tierColors: ["#4169E1", "#3558c0", "#2a48a0", "#1e3880"], tierWeapons: ["lance", "lance", "sword", "sword"] },
+  SPEARMAN: { name: "Spearman", hp: 110, attack: 16, armor: 3, speed: 1.4, cost: { food: 70, wood: 30, stone: 20 }, pop: 1, symbol: "SP", color: "#3a5a8a", range: 1.5, tierColors: ["#3a5a8a", "#2a4a7a", "#1e3a6a", "#152a5a"], tierWeapons: ["spear", "spear", "spear", "spear"] }
 };
 
 const PLAYER_COLORS = ["#4CAF50", "#f44336", "#2196F3", "#FF9800"];

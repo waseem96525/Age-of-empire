@@ -20,6 +20,12 @@
         <button id="save-game-btn" type="button" title="Save current game">Save</button>
         <button id="load-game-btn" type="button" title="Load saved game">Load</button>
       </div>
+      <div class="speed-controls" aria-label="Game speed">
+        <button class="speed-btn" data-speed="0.5" title="Half speed (Ctrl+1)">0.5x</button>
+        <button class="speed-btn active" data-speed="1" title="Normal speed (Ctrl+2)">1x</button>
+        <button class="speed-btn" data-speed="2" title="Double speed (Ctrl+3)">2x</button>
+        <button class="speed-btn" data-speed="3" title="Triple speed (Ctrl+4)">3x</button>
+      </div>
       <div class="audio-controls" aria-label="Audio controls">
         <button id="mute-btn" type="button" title="Toggle sound (M)">Sound</button>
         <button id="music-btn" type="button" title="Toggle music (Shift+M)">Music</button>
@@ -49,13 +55,14 @@
     <button class="formation-btn" data-formation="box" title="Box (square)">□</button>
     <button class="formation-btn" data-formation="scatter" title="Scatter">·</button>
   </div>
-  <div id="unit-counter" class="unit-counter">
-    <span id="unit-count-peasant">P:0</span>
-    <span id="unit-count-warrior">W:0</span>
-    <span id="unit-count-archer">A:0</span>
-    <span id="unit-count-samurai">S:0</span>
-    <span id="unit-count-cavalry">C:0</span>
-  </div>
+    <div id="unit-counter" class="unit-counter">
+      <span id="unit-count-peasant">P:0</span>
+      <span id="unit-count-warrior">W:0</span>
+      <span id="unit-count-archer">A:0</span>
+      <span id="unit-count-samurai">S:0</span>
+      <span id="unit-count-cavalry">C:0</span>
+      <span id="unit-count-spearman">SP:0</span>
+    </div>
   <div id="game-log"></div>
 </div>
 <div id="village-status" class="village-status">
@@ -92,7 +99,7 @@
           <p><strong>Repair:</strong> select Peasants, then right-click a damaged friendly building.</p>
           <p><strong>Build:</strong> choose a building, then left-click clear ground.</p>
           <p><strong>Houses:</strong> each House increases your population limit by 10.</p>
-          <p><strong>Train:</strong> Town Centers make Peasants; Barracks make Warriors, Archers, and Samurai; Stables make Cavalry.</p>
+          <p><strong>Train:</strong> Town Centers make Peasants; Barracks make Warriors, Archers, Samurai, and Spearmen; Stables make Cavalry.</p>
           <p><strong>Rally:</strong> select a production building, then right-click the map to set its rally point.</p>
           <p><strong>Command:</strong> select units, then right-click to attack, gather, repair, or attack-move. Right-click empty ground attacks while moving.</p>
           <p><strong>Queue:</strong> hold Shift and right-click to queue commands. Press H to stop selected units.</p>

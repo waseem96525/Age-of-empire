@@ -72,19 +72,53 @@ formationButtons.forEach(btn => {
   });
 });
 
+// Speed button handlers
+const speedButtons = document.querySelectorAll(".speed-btn");
+speedButtons.forEach(btn => {
+  btn.addEventListener("click", () => {
+    const speed = parseFloat(btn.dataset.speed);
+    setSpeed(speed);
+    speedButtons.forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+  });
+});
+
 const muteBtn = document.getElementById("mute-btn");
 const musicBtn = document.getElementById("music-btn");
 if (muteBtn) muteBtn.addEventListener("click", () => Sound.toggleMute());
 if (musicBtn) musicBtn.addEventListener("click", () => Sound.toggleMusic());
+
+// Game speed controls
+let gameSpeed = 1;
+const SPEED_OPTIONS = [0.5, 1, 2, 3];
+
+function setSpeed(multiplier) {
+  gameSpeed = multiplier;
+  const speedLabel = document.getElementById("speed-label");
+  if (speedLabel) speedLabel.textContent = multiplier + "x";
+  addNotification(`Game speed: ${multiplier}x`);
+}
 
 document.addEventListener("keydown", (e) => {
   gameState.keys[e.key.toLowerCase()] = true;
   if (e.key.toLowerCase() === " ") {
     e.preventDefault();
     gameState.paused = !gameState.paused;
+    if (gameState.paused) {
+      addNotification("Game paused");
+    } else {
+      addNotification("Game resumed");
+    }
+  }
+  // Speed controls: Ctrl+1/2/3/4
+  if (e.ctrlKey && (e.key === "1" || e.key === "2" || e.key === "3" || e.key === "4")) {
+    e.preventDefault();
+    const speeds = [0.5, 1, 2, 3];
+    const idx = parseInt(e.key) - 1;
+    setSpeed(speeds[idx]);
   }
   if (e.key.toLowerCase() === "escape") setBuildMode(null);
-  if (e.key >= "1" && e.key <= "7") {
+  if (e.key >= "1" && e.key <= "7" && !e.ctrlKey) {
     const idx = parseInt(e.key) - 1;
     const types = ["TOWN_CENTER", "HOUSE", "BARRACKS", "FARM", "LUMBER_CAMP", "MINE", "WALL", "STABLE"];
     if (types[idx]) setBuildMode(types[idx]);
@@ -99,11 +133,22 @@ document.addEventListener("keydown", (e) => {
     gameState.selectedUnits.forEach(u => { unitStop(u); advanceCommand(u); });
     addNotification("Units stopped");
   }
+  if (e.key.toLowerCase() === "a" && !e.ctrlKey) {
+    // Select all military units
+    gameState.selectedUnits = gameState.units.filter(u => u.playerIndex === 0 && u.alive && u.type !== "peasant");
+    gameState.selectedBuilding = null;
+    addNotification(`${gameState.selectedUnits.length} military units selected`);
+  }
   if (e.ctrlKey && e.key.toLowerCase() === "a") {
     e.preventDefault();
     Sound.resume();
     gameState.selectedUnits = gameState.units.filter(u => u.playerIndex === 0 && u.alive);
     addNotification(`${gameState.selectedUnits.length} units selected`);
+  }
+  if (e.key.toLowerCase() === "delete" || e.key === "Backspace") {
+    // Deselect all
+    gameState.selectedUnits = [];
+    gameState.selectedBuilding = null;
   }
 });
 
@@ -111,6 +156,7 @@ document.addEventListener("keyup", (e) => {
   gameState.keys[e.key.toLowerCase()] = false;
 });
 
+// Enhanced mouse interaction with Ctrl+Click toggle and Shift+Click add
 canvas.addEventListener("mousedown", (e) => {
   if (!gameState.started || gameState.gameOver || gameState.paused) return;
   const rect = canvas.getBoundingClientRect();
@@ -122,6 +168,9 @@ canvas.addEventListener("mousedown", (e) => {
     mouseDown = true;
     dragStartX = mouseX;
     dragStartY = mouseY;
+    // Track modifier keys
+    gameState.ctrlHeld = e.ctrlKey;
+    gameState.shiftHeld = e.shiftKey;
   } else if (e.button === 2) {
     rightMouseDown = true;
     dragStartX = mouseX;
@@ -168,17 +217,40 @@ canvas.addEventListener("mouseup", (e) => {
       const maxX = Math.max(start.x, end.x);
       const minY = Math.min(start.y, end.y);
       const maxY = Math.max(start.y, end.y);
-      gameState.selectedUnits = gameState.units.filter(u =>
+      // Box selection with modifier support
+      const boxUnits = gameState.units.filter(u =>
         u.playerIndex === 0 && u.alive &&
         u.x >= minX && u.x <= maxX &&
         u.y >= minY && u.y <= maxY
       );
+      if (e.ctrlKey) {
+        // Toggle: add if not selected, remove if already selected
+        const currentIds = new Set(gameState.selectedUnits.map(u => u.id));
+        boxUnits.forEach(u => {
+          if (currentIds.has(u.id)) {
+            gameState.selectedUnits = gameState.selectedUnits.filter(s => s.id !== u.id);
+          } else {
+            gameState.selectedUnits.push(u);
+          }
+        });
+      } else if (e.shiftKey) {
+        // Add to selection
+        boxUnits.forEach(u => {
+          if (!gameState.selectedUnits.some(s => s.id === u.id)) {
+            gameState.selectedUnits.push(u);
+          }
+        });
+      } else {
+        gameState.selectedUnits = boxUnits;
+      }
       gameState.selectedBuilding = null;
     } else {
       handleLeftClick(e);
     }
     mouseDown = false;
     isDragging = false;
+    gameState.ctrlHeld = false;
+    gameState.shiftHeld = false;
   }
 });
 
@@ -575,7 +647,7 @@ function update(dt) {
 }
 
 function gameLoop(timestamp) {
-  const dt = Math.min((timestamp - gameState.lastTime) / 1000, 0.1);
+  const dt = Math.min((timestamp - gameState.lastTime) / 1000, 0.1) * gameSpeed;
   gameState.lastTime = timestamp;
   if (!gameState.paused && !gameState.gameOver) {
     update(dt);

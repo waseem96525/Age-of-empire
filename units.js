@@ -580,14 +580,19 @@ function drawUnitHealthBar(ctx, u, cx, y, ts) {
   ctx.fillRect(cx - barW / 2 + 1, y + 1, Math.max(0, (barW - 2) * hpRatio), Math.max(1, barH - 2));
 }
 
-// Enhanced unit drawing with animation
+// Enhanced unit drawing with tiered veteran visuals
 function drawUnitSilhouette(ctx, u, cx, cy, ts) {
   const scale = ts / 40;
   const teamColor = PLAYER_COLORS[u.playerIndex] || "#4caf50";
   const skin = "#d49a6a";
   const darkSkin = "#a86f4c";
-  const robe = u.type === "peasant" ? "#8e7355" : u.type === "archer" ? "#557a3c" : "#7d3f36";
-  const metal = "#c8c5b8";
+  const def = UNITS[u.type.toUpperCase()];
+  const veteran = u.veteran || 0;
+  const tierIdx = Math.min(veteran, 3);
+  const robe = def.tierColors ? def.tierColors[tierIdx] : (u.type === "peasant" ? "#8e7355" : u.type === "archer" ? "#557a3c" : "#7d3f36");
+  const metal = veteran >= 2 ? "#d0ccc0" : "#c8c5b8";
+  const sizeBoost = 1 + veteran * 0.04;
+  const s = ts * sizeBoost;
   
   // Walking animation offset (bob up and down)
   const walkCycle = Math.sin(u.animFrame * Math.PI) * (u.task === "move" || u.task === "gather" ? 2 : 0);
@@ -605,112 +610,258 @@ function drawUnitSilhouette(ctx, u, cx, cy, ts) {
   // Shadow with soft edge
   ctx.fillStyle = "rgba(23, 30, 18, 0.32)";
   ctx.beginPath();
-  ctx.ellipse(0, ts * 0.22 + walkCycle * 0.5, ts * 0.25, ts * 0.1, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, s * 0.22 + walkCycle * 0.5, s * 0.25, s * 0.1, 0, 0, Math.PI * 2);
   ctx.fill();
   
   if (u.type === "cavalry") {
-    ctx.fillStyle = "#805039";
+    ctx.fillStyle = veteran >= 2 ? "#4a4a4a" : "#805039";
     ctx.beginPath();
-    ctx.ellipse(-ts * 0.04, ts * 0.07 + walkCycle * 0.5, ts * 0.27, ts * 0.17, 0, 0, Math.PI * 2);
+    ctx.ellipse(-s * 0.04, s * 0.07 + walkCycle * 0.5, s * 0.27, s * 0.17, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "#6a3c2b";
-    ctx.fillRect(ts * 0.17, -ts * 0.05 + walkCycle, ts * 0.12, ts * 0.2);
+    ctx.fillStyle = veteran >= 2 ? "#2a2a2a" : "#6a3c2b";
+    ctx.fillRect(s * 0.17, -s * 0.05 + walkCycle, s * 0.12, s * 0.2);
     ctx.fillStyle = "#35251f";
-    ctx.fillRect(-ts * 0.18, ts * 0.17 + walkCycle, ts * 0.06, ts * 0.14);
-    ctx.fillRect(ts * 0.1, ts * 0.17 + walkCycle, ts * 0.06, ts * 0.14);
-    ctx.fillStyle = "#b89152";
-    ctx.fillRect(-ts * 0.19, -ts * 0.02 + walkCycle, ts * 0.28, ts * 0.08);
+    ctx.fillRect(-s * 0.18, s * 0.17 + walkCycle, s * 0.06, s * 0.14);
+    ctx.fillRect(s * 0.1, s * 0.17 + walkCycle, s * 0.06, s * 0.14);
+    ctx.fillStyle = veteran >= 2 ? "#e0d8c0" : "#b89152";
+    ctx.fillRect(-s * 0.19, -s * 0.02 + walkCycle, s * 0.28, s * 0.08);
+    if (veteran >= 3) {
+      ctx.fillStyle = "rgba(240,192,64,0.3)";
+      ctx.beginPath();
+      ctx.ellipse(0, s * 0.07 + walkCycle * 0.5, s * 0.32, s * 0.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   
-  const riderOffset = u.type === "cavalry" ? -ts * 0.12 : 0;
-  ctx.fillStyle = "#30383d";
-  ctx.fillRect(-ts * 0.11, riderOffset + ts * 0.08 + walkCycle, ts * 0.08, ts * 0.18);
-  ctx.fillRect(ts * 0.03, riderOffset + ts * 0.08 + walkCycle, ts * 0.08, ts * 0.18);
+  const riderOffset = u.type === "cavalry" ? -s * 0.12 : 0;
+  ctx.fillStyle = veteran >= 2 ? "#4a5060" : "#30383d";
+  ctx.fillRect(-s * 0.11, riderOffset + s * 0.08 + walkCycle, s * 0.08, s * 0.18);
+  ctx.fillRect(s * 0.03, riderOffset + s * 0.08 + walkCycle, s * 0.08, s * 0.18);
   
   ctx.fillStyle = u.type === "samurai" ? "#38454d" : robe;
   ctx.beginPath();
-  ctx.moveTo(-ts * 0.16, riderOffset - ts * 0.05 + walkCycle);
-  ctx.lineTo(ts * 0.16, riderOffset - ts * 0.05 + walkCycle);
-  ctx.lineTo(ts * 0.12, riderOffset + ts * 0.16 + walkCycle);
-  ctx.lineTo(-ts * 0.12, riderOffset + ts * 0.16 + walkCycle);
+  ctx.moveTo(-s * 0.16, riderOffset - s * 0.05 + walkCycle);
+  ctx.lineTo(s * 0.16, riderOffset - s * 0.05 + walkCycle);
+  ctx.lineTo(s * 0.12, riderOffset + s * 0.16 + walkCycle);
+  ctx.lineTo(-s * 0.12, riderOffset + s * 0.16 + walkCycle);
   ctx.closePath();
   ctx.fill();
   
-  ctx.fillStyle = teamColor;
-  ctx.fillRect(-ts * 0.16, riderOffset + ts * 0.02 + walkCycle, ts * 0.32, ts * 0.055);
-  ctx.fillStyle = darkSkin;
-  ctx.beginPath();
-  ctx.arc(0, riderOffset - ts * 0.13 + walkCycle, ts * 0.1, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = skin;
-  ctx.beginPath();
-  ctx.arc(-ts * 0.015, riderOffset - ts * 0.145 + walkCycle, ts * 0.082, 0, Math.PI * 2);
-  ctx.fill();
+  if (veteran >= 1 && u.type !== "peasant") {
+    ctx.fillStyle = metal;
+    ctx.fillRect(-s * 0.15, riderOffset - s * 0.02 + walkCycle, s * 0.30, s * 0.04);
+    ctx.fillRect(-s * 0.14, riderOffset + s * 0.02 + walkCycle, s * 0.28, s * 0.03);
+  }
   
-  if (u.type === "peasant") {
-    // Enhanced farmer with tool animation
-    const toolSwing = Math.sin(u.animFrame * 0.5) * 0.2 * (u.task === "gather" ? 1 : 0);
-    ctx.fillStyle = "#c8a55a";
+  ctx.fillStyle = teamColor;
+  ctx.fillRect(-s * 0.16, riderOffset + s * 0.02 + walkCycle, s * 0.32, s * 0.055);
+  
+  if (u.type === "spearman") {
+    ctx.fillStyle = darkSkin;
     ctx.beginPath();
-    ctx.ellipse(0, riderOffset - ts * 0.205 + walkCycle, ts * 0.13, ts * 0.042, 0, 0, Math.PI * 2);
+    ctx.arc(0, riderOffset - s * 0.14 + walkCycle, s * 0.1, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = "#744826";
-    ctx.lineWidth = Math.max(2, 2.5 * scale);
+    ctx.fillStyle = veteran >= 2 ? "#4a6a8a" : "#3a5a8a";
     ctx.beginPath();
-    ctx.moveTo(ts * 0.12, riderOffset + ts * 0.01 + walkCycle);
-    ctx.lineTo(ts * 0.27 + toolSwing * ts, riderOffset - ts * 0.2 + walkCycle);
-    ctx.stroke();
-    ctx.strokeStyle = "#a2a7a1";
+    ctx.moveTo(-s * 0.12, riderOffset - s * 0.22 + walkCycle);
+    ctx.lineTo(s * 0.12, riderOffset - s * 0.22 + walkCycle);
+    ctx.lineTo(s * 0.08, riderOffset - s * 0.38 + walkCycle);
+    ctx.lineTo(-s * 0.08, riderOffset - s * 0.38 + walkCycle);
+    ctx.closePath();
+    ctx.fill();
+    if (veteran >= 2) {
+      ctx.fillStyle = metal;
+      ctx.fillRect(-s * 0.1, riderOffset - s * 0.2 + walkCycle, s * 0.2, s * 0.06);
+    }
+    ctx.fillStyle = skin;
     ctx.beginPath();
-    ctx.moveTo(ts * 0.22, riderOffset - ts * 0.22 + walkCycle);
-    ctx.lineTo(ts * 0.31, riderOffset - ts * 0.16 + walkCycle);
+    ctx.arc(0, riderOffset - s * 0.16 + walkCycle, s * 0.06, 0, Math.PI * 2);
+    ctx.fill();
+    const spearSwing = Math.sin(u.animFrame * (u.task === "attack" ? 1.5 : 0.5)) * 0.15 * (u.task === "attack" ? 1 : 0);
+    ctx.strokeStyle = metal;
+    ctx.lineWidth = Math.max(2, 2 * scale);
+    ctx.beginPath();
+    ctx.moveTo(s * 0.15, riderOffset + s * 0.08 + walkCycle);
+    ctx.lineTo(s * 0.15 + spearSwing * s, riderOffset - s * 0.35 + walkCycle);
     ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(s * 0.15 + spearSwing * s, riderOffset - s * 0.35 + walkCycle);
+    ctx.lineTo(s * 0.15 + spearSwing * s + s * 0.02, riderOffset - s * 0.48 + walkCycle);
+    ctx.stroke();
+    ctx.fillStyle = metal;
+    ctx.beginPath();
+    ctx.moveTo(s * 0.15 + spearSwing * s + s * 0.02, riderOffset - s * 0.48 + walkCycle);
+    ctx.lineTo(s * 0.15 + spearSwing * s - s * 0.02, riderOffset - s * 0.45 + walkCycle);
+    ctx.lineTo(s * 0.15 + spearSwing * s, riderOffset - s * 0.43 + walkCycle);
+    ctx.closePath();
+    ctx.fill();
+  } else if (u.type === "peasant") {
+    if (veteran === 0) {
+      ctx.fillStyle = "#c8a55a";
+      ctx.beginPath();
+      ctx.ellipse(0, riderOffset - s * 0.205 + walkCycle, s * 0.13, s * 0.042, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#744826";
+      ctx.lineWidth = Math.max(2, 2.5 * scale);
+      ctx.beginPath();
+      ctx.moveTo(s * 0.12, riderOffset + s * 0.01 + walkCycle);
+      ctx.lineTo(s * 0.27, riderOffset - s * 0.2 + walkCycle);
+      ctx.stroke();
+      ctx.strokeStyle = "#a2a7a1";
+      ctx.beginPath();
+      ctx.moveTo(s * 0.22, riderOffset - s * 0.22 + walkCycle);
+      ctx.lineTo(s * 0.31, riderOffset - s * 0.16 + walkCycle);
+      ctx.stroke();
+    } else if (veteran === 1) {
+      ctx.fillStyle = "#8a7a5a";
+      ctx.beginPath();
+      ctx.ellipse(0, riderOffset - s * 0.205 + walkCycle, s * 0.14, s * 0.045, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#6a3a2a";
+      ctx.lineWidth = Math.max(2, 2.5 * scale);
+      ctx.beginPath();
+      ctx.moveTo(s * 0.12, riderOffset + s * 0.01 + walkCycle);
+      ctx.lineTo(s * 0.27, riderOffset - s * 0.2 + walkCycle);
+      ctx.stroke();
+      ctx.strokeStyle = "#8a8a80";
+      ctx.beginPath();
+      ctx.moveTo(s * 0.22, riderOffset - s * 0.22 + walkCycle);
+      ctx.lineTo(s * 0.31, riderOffset - s * 0.16 + walkCycle);
+      ctx.stroke();
+    } else if (veteran === 2) {
+      ctx.fillStyle = "#a0a0a0";
+      ctx.beginPath();
+      ctx.arc(0, riderOffset - s * 0.22 + walkCycle, s * 0.11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#e0e0e0";
+      ctx.fillRect(-s * 0.02, riderOffset - s * 0.32 + walkCycle, s * 0.04, s * 0.06);
+      ctx.strokeStyle = "#5a5a5a";
+      ctx.lineWidth = Math.max(2, 2.5 * scale);
+      ctx.beginPath();
+      ctx.moveTo(s * 0.12, riderOffset + s * 0.01 + walkCycle);
+      ctx.lineTo(s * 0.27, riderOffset - s * 0.2 + walkCycle);
+      ctx.stroke();
+      ctx.strokeStyle = "#909090";
+      ctx.beginPath();
+      ctx.moveTo(s * 0.22, riderOffset - s * 0.22 + walkCycle);
+      ctx.lineTo(s * 0.31, riderOffset - s * 0.16 + walkCycle);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = "#b0b0b0";
+      ctx.beginPath();
+      ctx.arc(0, riderOffset - s * 0.22 + walkCycle, s * 0.11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(-s * 0.015, riderOffset - s * 0.34 + walkCycle, s * 0.03, s * 0.04);
+      ctx.fillStyle = "#ffcc00";
+      ctx.beginPath();
+      ctx.arc(-s * 0.015, riderOffset - s * 0.36 + walkCycle, s * 0.02, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#5a5a5a";
+      ctx.lineWidth = Math.max(2, 2.5 * scale);
+      ctx.beginPath();
+      ctx.moveTo(s * 0.12, riderOffset + s * 0.01 + walkCycle);
+      ctx.lineTo(s * 0.27, riderOffset - s * 0.2 + walkCycle);
+      ctx.stroke();
+      ctx.strokeStyle = "#909090";
+      ctx.beginPath();
+      ctx.moveTo(s * 0.22, riderOffset - s * 0.22 + walkCycle);
+      ctx.lineTo(s * 0.31, riderOffset - s * 0.16 + walkCycle);
+      ctx.stroke();
+    }
   } else if (u.type === "archer") {
-    // Enhanced archer with bow animation
     const bowAnimate = Math.sin(u.animFrame * 0.7) * 0.1 * (u.task === "attack" ? 1 : 0);
-    ctx.strokeStyle = "#8a5b32";
+    ctx.strokeStyle = veteran >= 2 ? "#6a4a2a" : "#8a5b32";
     ctx.lineWidth = Math.max(2, 2.4 * scale);
+    const bowR = veteran >= 3 ? s * 0.2 : s * 0.16;
     ctx.beginPath();
-    ctx.arc(ts * 0.2 + bowAnimate * ts, riderOffset, ts * 0.16, -Math.PI / 2, Math.PI / 2);
+    ctx.arc(s * 0.2 + bowAnimate * s, riderOffset, bowR, -Math.PI / 2, Math.PI / 2);
     ctx.stroke();
-    ctx.strokeStyle = "#e6d4a9";
+    ctx.strokeStyle = veteran >= 3 ? "#f0e0c0" : "#e6d4a9";
     ctx.lineWidth = Math.max(1, scale);
     ctx.beginPath();
-    ctx.moveTo(ts * 0.2 + bowAnimate * ts, riderOffset - ts * 0.16);
-    ctx.lineTo(ts * 0.2 + bowAnimate * ts, riderOffset + ts * 0.16);
+    ctx.moveTo(s * 0.2 + bowAnimate * s, riderOffset - bowR);
+    ctx.lineTo(s * 0.2 + bowAnimate * s, riderOffset + bowR);
     ctx.stroke();
+    if (veteran >= 1) {
+      ctx.fillStyle = "#5a4a2a";
+      ctx.fillRect(-s * 0.04, riderOffset - s * 0.3 + walkCycle, s * 0.02, s * 0.12);
+      ctx.fillRect(-s * 0.01, riderOffset - s * 0.32 + walkCycle, s * 0.02, s * 0.1);
+      ctx.fillRect(s * 0.02, riderOffset - s * 0.3 + walkCycle, s * 0.02, s * 0.11);
+    }
+    if (veteran >= 3) {
+      ctx.strokeStyle = "#8a5b32";
+      ctx.lineWidth = Math.max(2, 2.8 * scale);
+      ctx.beginPath();
+      ctx.arc(s * 0.2 + bowAnimate * s, riderOffset, s * 0.2, -Math.PI / 2, Math.PI / 2);
+      ctx.stroke();
+    }
   } else if (u.type === "samurai") {
-    // Enhanced samurai with attack animation
     const swordSwing = Math.sin(u.animFrame * 1.2) * 0.4 * (u.task === "attack" ? 1 : 0);
-    ctx.fillStyle = "#252b30";
+    ctx.fillStyle = veteran >= 2 ? "#2a3035" : "#252b30";
     ctx.beginPath();
-    ctx.arc(0, riderOffset - ts * 0.2 + walkCycle, ts * 0.115, Math.PI, 0);
+    ctx.arc(0, riderOffset - s * 0.2 + walkCycle, s * 0.115, Math.PI, 0);
     ctx.fill();
-    ctx.fillStyle = "#d1b05f";
-    ctx.fillRect(-ts * 0.13, riderOffset - ts * 0.165 + walkCycle, ts * 0.26, ts * 0.035);
+    ctx.fillStyle = veteran >= 2 ? "#e0c060" : "#d1b05f";
+    ctx.fillRect(-s * 0.13, riderOffset - s * 0.165 + walkCycle, s * 0.26, s * 0.035);
+    if (veteran >= 2) {
+      ctx.fillStyle = "#c0a040";
+      ctx.fillRect(-s * 0.14, riderOffset - s * 0.18 + walkCycle, s * 0.28, s * 0.02);
+      ctx.fillRect(-s * 0.15, riderOffset - s * 0.15 + walkCycle, s * 0.30, s * 0.02);
+    }
+    if (veteran >= 3) {
+      ctx.fillStyle = "#ffd700";
+      ctx.beginPath();
+      ctx.arc(0, riderOffset - s * 0.32 + walkCycle, s * 0.04, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(-s * 0.01, riderOffset - s * 0.36 + walkCycle, s * 0.02, s * 0.06);
+    }
     ctx.strokeStyle = metal;
     ctx.lineWidth = Math.max(2, 2.5 * scale);
     ctx.beginPath();
-    ctx.moveTo(ts * 0.1, riderOffset + ts * 0.08 + walkCycle);
-    ctx.lineTo(ts * 0.28 + swordSwing * ts, riderOffset - ts * 0.16 + walkCycle);
+    ctx.moveTo(s * 0.1, riderOffset + s * 0.08 + walkCycle);
+    ctx.lineTo(s * 0.28 + swordSwing * s, riderOffset - s * 0.16 + walkCycle);
     ctx.stroke();
   } else {
-    // Enhanced warrior with weapon animation
     ctx.fillStyle = "#69747a";
     ctx.beginPath();
-    ctx.moveTo(-ts * 0.1, riderOffset - ts * 0.19 + walkCycle);
-    ctx.lineTo(ts * 0.1, riderOffset - ts * 0.19 + walkCycle);
-    ctx.lineTo(ts * 0.06, riderOffset - ts * 0.28 + walkCycle);
-    ctx.lineTo(-ts * 0.06, riderOffset - ts * 0.28 + walkCycle);
+    ctx.moveTo(-s * 0.1, riderOffset - s * 0.19 + walkCycle);
+    ctx.lineTo(s * 0.1, riderOffset - s * 0.19 + walkCycle);
+    ctx.lineTo(s * 0.06, riderOffset - s * 0.28 + walkCycle);
+    ctx.lineTo(-s * 0.06, riderOffset - s * 0.28 + walkCycle);
     ctx.closePath();
     ctx.fill();
+    if (veteran >= 1) {
+      ctx.fillStyle = metal;
+      ctx.fillRect(-s * 0.12, riderOffset - s * 0.18 + walkCycle, s * 0.24, s * 0.04);
+    }
+    if (veteran >= 2) {
+      ctx.fillStyle = metal;
+      ctx.fillRect(-s * 0.13, riderOffset - s * 0.14 + walkCycle, s * 0.26, s * 0.03);
+      ctx.fillRect(-s * 0.14, riderOffset - s * 0.10 + walkCycle, s * 0.28, s * 0.03);
+    }
+    if (veteran >= 3) {
+      ctx.fillStyle = "#c0c0c0";
+      ctx.fillRect(-s * 0.15, riderOffset - s * 0.22 + walkCycle, s * 0.30, s * 0.08);
+      ctx.fillRect(-s * 0.12, riderOffset - s * 0.3 + walkCycle, s * 0.24, s * 0.04);
+    }
     const weaponSwing = Math.sin(u.animFrame * 1.2) * 0.3 * (u.task === "attack" ? 1 : 0);
     ctx.strokeStyle = metal;
     ctx.lineWidth = Math.max(2, 2.5 * scale);
     ctx.beginPath();
-    ctx.moveTo(ts * 0.1, riderOffset + ts * 0.08 + walkCycle);
-    ctx.lineTo(ts * 0.27 + weaponSwing * ts, riderOffset - ts * 0.18 + walkCycle);
+    ctx.moveTo(s * 0.1, riderOffset + s * 0.08 + walkCycle);
+    ctx.lineTo(s * 0.27 + weaponSwing * s, riderOffset - s * 0.18 + walkCycle);
     ctx.stroke();
+    if (veteran >= 2 && u.type === "warrior") {
+      ctx.fillStyle = teamColor;
+      ctx.beginPath();
+      ctx.ellipse(-s * 0.22, riderOffset + s * 0.02 + walkCycle, s * 0.08, s * 0.12, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffd700";
+      ctx.beginPath();
+      ctx.arc(-s * 0.22, riderOffset + s * 0.02 + walkCycle, s * 0.03, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   ctx.restore();
 }

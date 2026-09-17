@@ -30,17 +30,19 @@ function updateUI() {
   const unitCounter = document.getElementById("unit-counter");
 
   // Unit counter
-  if (unitCounter) {
-    const counts = { peasant: 0, warrior: 0, archer: 0, samurai: 0, cavalry: 0 };
-    for (const u of gameState.units) {
-      if (u.alive && u.playerIndex === 0) counts[u.type]++;
+    if (unitCounter) {
+      const counts = { peasant: 0, warrior: 0, archer: 0, samurai: 0, cavalry: 0, spearman: 0 };
+      for (const u of gameState.units) {
+        if (u.alive && u.playerIndex === 0) counts[u.type]++;
+      }
+      document.getElementById("unit-count-peasant").textContent = "P:" + counts.peasant;
+      document.getElementById("unit-count-warrior").textContent = "W:" + counts.warrior;
+      document.getElementById("unit-count-archer").textContent = "A:" + counts.archer;
+      document.getElementById("unit-count-samurai").textContent = "S:" + counts.samurai;
+      document.getElementById("unit-count-cavalry").textContent = "C:" + counts.cavalry;
+      const spearmanEl = document.getElementById("unit-count-spearman");
+      if (spearmanEl) spearmanEl.textContent = "SP:" + counts.spearman;
     }
-    document.getElementById("unit-count-peasant").textContent = "P:" + counts.peasant;
-    document.getElementById("unit-count-warrior").textContent = "W:" + counts.warrior;
-    document.getElementById("unit-count-archer").textContent = "A:" + counts.archer;
-    document.getElementById("unit-count-samurai").textContent = "S:" + counts.samurai;
-    document.getElementById("unit-count-cavalry").textContent = "C:" + counts.cavalry;
-  }
 
   if (gameState.buildMode) {
     const def = BUILDINGS[gameState.buildMode];
@@ -53,11 +55,14 @@ function updateUI() {
     const vetCost = window.getUpgradeCost ? window.getUpgradeCost(u.type, u.veteran + 1) : null;
     const canVet = u.veteran < 3 && vetCost && canAfford(gameState.resources, vetCost);
     const vetBtn = canVet
-      ? `<button id="upgrade-unit-btn" class="action-btn" type="button">Upgrade to Lv.${u.veteran + 1} (${formatCost(vetCost)})</button>`
-      : `<button id="upgrade-unit-btn" class="action-btn disabled" type="button" disabled>Upgrade (Max Lv.3)</button>`;
+      ? `<button id="upgrade-unit-btn" class="action-btn" type="button">Upgrade to Veteran Lv.${u.veteran + 1} (${formatCost(vetCost)})</button>`
+      : u.veteran >= 3
+        ? `<button id="upgrade-unit-btn" class="action-btn disabled" type="button" disabled>Max Veteran Lv.3</button>`
+        : `<button id="upgrade-unit-btn" class="action-btn disabled" type="button" disabled>Upgrade (${formatCost(vetCost)})</button>`;
     const garrisonBtn = `<button id="garrison-btn" class="action-btn" type="button">Garrison (G)</button>`;
     const stopBtn = `<button id="stop-btn" class="action-btn" type="button">Stop (H)</button>`;
-    selectedInfo.innerHTML = `<h4>${u.symbol} ${def.name} ${u.veteran > 0 ? "★".repeat(u.veteran) : ""}</h4><p>HP: ${Math.floor(u.hp)}/${u.maxHp}</p><p>ATK: ${u.attack} | ARM: ${u.armor}</p><p>Range: ${u.range}</p><p>Task: ${u.task}</p>${vetBtn}${garrisonBtn}${stopBtn}`;
+    const vetDisplay = u.veteran > 0 ? "★".repeat(u.veteran) + " " : "";
+    selectedInfo.innerHTML = `<h4>${def.symbol} ${def.name} ${vetDisplay}</h4><p>HP: ${Math.floor(u.hp)}/${u.maxHp}</p><p>ATK: ${u.attack} | ARM: ${u.armor}</p><p>Range: ${u.range}</p><p>Task: ${u.task}</p>${vetBtn}${garrisonBtn}${stopBtn}`;
     if (unitActions) unitActions.style.display = "flex";
     if (formationControls) formationControls.style.display = "flex";
   } else if (gameState.selectedUnits.length > 1) {
@@ -157,7 +162,7 @@ function updateBuildButtons() {
   const buildingBtns = document.getElementById("building-buttons");
   const unitBtns = document.getElementById("unit-buttons");
   const types = ["TOWN_CENTER", "HOUSE", "BARRACKS", "FARM", "LUMBER_CAMP", "MINE", "WALL", "STABLE"];
-  const unitTypes = ["peasant", "samurai", "archer", "cavalry", "warrior"];
+  const unitTypes = ["peasant", "samurai", "archer", "cavalry", "warrior", "spearman"];
 
   if (!buildingBtns.dataset.initialized) {
     for (const type of types) {
