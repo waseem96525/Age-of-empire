@@ -71,23 +71,194 @@ function collectResource(unit) {
   }
 }
 
+const TECH_TREE = {
+  "Crop Rotation": {
+    id: "Crop Rotation",
+    age: 0,
+    cost: { food: 100, wood: 50, gold: 50, stone: 25 },
+    requirements: {},
+    effects: {
+      foodProduction: 0.25
+    },
+    description: "Increases farm food production by 25%"
+  },
+  "Efficient Logging": {
+    id: "Efficient Logging",
+    age: 0,
+    cost: { food: 100, wood: 50, gold: 50, stone: 25 },
+    requirements: {},
+    effects: {
+      woodProduction: 0.25
+    },
+    description: "Increases lumber camp wood production by 25%"
+  },
+  "Mining Techniques": {
+    id: "Mining Techniques",
+    age: 0,
+    cost: { food: 100, wood: 50, gold: 50, stone: 25 },
+    requirements: {},
+    effects: {
+      goldProduction: 0.25,
+      stoneProduction: 0.125
+    },
+    description: "Increases mine gold and stone production by 25%/12.5%"
+  },
+  "Quarrying": {
+    id: "Quarrying",
+    age: 0,
+    cost: { food: 100, wood: 50, gold: 50, stone: 25 },
+    requirements: {},
+    effects: {
+      stoneProduction: 0.25
+    },
+    description: "Increases mine stone production by 25%"
+  },
+  "Iron Working": {
+    id: "Iron Working",
+    age: 1,
+    cost: { food: 200, wood: 150, gold: 150, stone: 100 },
+    requirements: { "Mining Techniques": 1 },
+    effects: {
+      warriorAttack: 0.3,
+      swordsmanUnlock: true
+    },
+    description: "Unlocks Warrior unit and increases attack by 30%"
+  },
+  "Archery": {
+    id: "Archery",
+    age: 1,
+    cost: { food: 150, wood: 100, gold: 100, stone: 50 },
+    requirements: {},
+    effects: {
+      archerRange: 0.5,
+      archerAttack: 0.2
+    },
+    description: "Increases Archer range by 0.5 and attack by 20%"
+  },
+  "Stable Mastery": {
+    id: "Stable Mastery",
+    age: 1,
+    cost: { food: 150, wood: 100, gold: 100, stone: 50 },
+    requirements: {},
+    effects: {
+      cavalrySpeed: 0.15,
+      cavalryAttack: 0.2
+    },
+    description: "Increases Cavalry speed by 15% and attack by 20%"
+  },
+  "Squireship": {
+    id: "Squireship",
+    age: 2,
+    cost: { food: 400, wood: 300, gold: 400, stone: 200 },
+    requirements: { "Iron Working": 3 },
+    effects: {
+      warriorAttack: 0.5,
+      veteranXP: 0.2
+    },
+    description: "Warriors gain veteran XP 20% faster and +50% attack"
+  },
+  "Ballistics": {
+    id: "Ballistics",
+    age: 2,
+    cost: { food: 300, wood: 200, gold: 300, stone: 150 },
+    requirements: { Archery: 3 },
+    effects: {
+      archerDamage: 0.3
+    },
+    description: "Archers deal 30% more damage"
+  },
+  "Horse Collar": {
+    id: "Horse Collar",
+    age: 2,
+    cost: { food: 200, wood: 150, gold: 150, stone: 100 },
+    requirements: { "Stable Mastery": 3 },
+    effects: {
+      farmProduction: 0.2
+    },
+    description: "Farms produce 20% more food"
+  },
+  "Supplies": {
+    id: "Supplies",
+    age: 3,
+    cost: { food: 500, wood: 400, gold: 500, stone: 300 },
+    requirements: { "Squireship": 3, "Ballistics": 3, "Horse Collar": 3 },
+    effects: {
+      allProduction: 0.15
+    },
+    description: "All resource production increased by 15%"
+  }
+};
+
+function getTechLevel(resType) {
+  return gameState.techLevels && gameState.techLevels[resType] || 0;
+}
+
+function getTechEffect(effectName) {
+  const tech = gameState.techLevels || {};
+  const effects = {
+    foodProduction: 0.25 * (tech.food || 0),
+    woodProduction: 0.25 * (tech.wood || 0),
+    goldProduction: 0.25 * (tech.gold || 0),
+    stoneProduction: 0.125 * (tech.stone || 0),
+    warriorAttack: 0.3 * (tech.warrior || 0 || 0),
+    archerRange: 0.5 * (tech.archer || 0 || 0),
+    archerAttack: 0.2 * (tech.archer || 0 || 0),
+    cavalrySpeed: 0.15 * (tech.cavalry || 0 || 0),
+    cavalryAttack: 0.2 * (tech.cavalry || 0 || 0),
+    veteranXP: 0.2 * (tech.veteran || 0 || 0),
+    archerDamage: 0.3 * (tech.archer || 0 || 0),
+    allProduction: 0.15 * (tech.all || 0 || 0)
+  };
+  return effects[effectName] || 0;
+}
+
 function researchTech(resType) {
   if (!resType) return false;
   const tech = gameState.techLevels || { food: 0, wood: 0, gold: 0, stone: 0 };
   const current = tech[resType] || 0;
   if (current >= 3) return false;
-  const costs = [
-    { food: 100, wood: 50, gold: 50, stone: 25 },
-    { food: 200, wood: 100, gold: 100, stone: 75 },
-    { food: 400, wood: 200, gold: 200, stone: 150 }
-  ];
-  const cost = costs[current];
+
+  const techEntry = Object.values(TECH_TREE).find(t => t.id === resType);
+  if (!techEntry) return false;
+
+  const age = techEntry.age || 0;
+  const ageCheck = (gameState.villageLevel || 1) - 1;
+  if (age > ageCheck) {
+    addNotification(`Technology requires Age ${age + 1}`);
+    return false;
+  }
+
+  const cost = techEntry.cost;
   if (!canAfford(gameState.resources, cost)) return false;
+
+  // Check requirements
+  for (const [reqTech, reqLevel] of Object.entries(techEntry.requirements || {})) {
+    if ((gameState.techLevels || {})[reqTech] < reqLevel) {
+      addNotification(`Requires ${reqTech} Lv.${reqLevel}`);
+      return false;
+    }
+  }
+
   spendResources(gameState.resources, cost);
   tech[resType] = current + 1;
   gameState.techLevels = tech;
-  const names = { food: "Crop Rotation", wood: "Efficient Logging", gold: "Mining Techniques", stone: "Quarrying" };
-  addNotification(`${names[resType]} researched! (Lv.${tech[resType]})`);
+  
+  const names = {
+    food: "Crop Rotation",
+    wood: "Efficient Logging",
+    gold: "Mining Techniques",
+    stone: "Quarrying",
+    IronWorking: "Iron Working",
+    Archery: "Archery",
+    StableMastery: "Stable Mastery",
+    Squireship: "Squireship",
+    Ballistics: "Ballistics",
+    HorseCollar: "Horse Collar",
+    Supplies: "Supplies"
+  };
+
+  addNotification(`${names[resType] || resType} researched! (Lv.${tech[resType]})`);
+  
   const tc = gameState.buildings.find(b => b.type === "TOWN_CENTER" && b.playerIndex === 0);
   if (tc) addParticle(tc.x * TILE_SIZE + TILE_SIZE / 2, tc.y * TILE_SIZE + TILE_SIZE / 2, "#f0c040", 25);
   Sound.playTrain();
@@ -100,3 +271,6 @@ window.collectResource = collectResource;
 window.getProductionRates = getResourceProductionRates;
 window.researchTech = researchTech;
 window.getProductionMultiplier = getProductionMultiplier;
+window.TECH_TREE = TECH_TREE;
+window.getTechLevel = getTechLevel;
+window.getTechEffect = getTechEffect;

@@ -6,6 +6,8 @@ function updateUI() {
   document.getElementById("gold-val").textContent = Math.floor(r.gold);
   document.getElementById("stone-val").textContent = Math.floor(r.stone);
   document.getElementById("pop-val").textContent = `${gameState.population}/${gameState.maxPopulation}`;
+  const ageEl = document.getElementById("age-val");
+  if (ageEl) ageEl.textContent = `Age ${AGES[gameState.age]?.name || "Dark"}`;
   const rateEls = ["food-rate", "wood-rate", "gold-rate", "stone-rate"];
   const rateKeys = ["food", "wood", "gold", "stone"];
   for (let i = 0; i < rateEls.length; i++) {
@@ -62,7 +64,32 @@ function updateUI() {
     const garrisonBtn = `<button id="garrison-btn" class="action-btn" type="button">Garrison (G)</button>`;
     const stopBtn = `<button id="stop-btn" class="action-btn" type="button">Stop (H)</button>`;
     const vetDisplay = u.veteran > 0 ? "★".repeat(u.veteran) + " " : "";
-    selectedInfo.innerHTML = `<h4>${def.symbol} ${def.name} ${vetDisplay}</h4><p>HP: ${Math.floor(u.hp)}/${u.maxHp}</p><p>ATK: ${u.attack} | ARM: ${u.armor}</p><p>Range: ${u.range}</p><p>Task: ${u.task}</p>${vetBtn}${garrisonBtn}${stopBtn}`;
+    const specialUpgrades = [];
+    if (u.type === "archer" && u.veteran < 3) {
+      const flamingCost = getSpecialUpgradeCost("archer", "flaming-arrows");
+      if (flamingCost && canAfford(gameState.resources, flamingCost)) {
+        specialUpgrades.push(`<button class="action-btn" onclick="window.upgradeUnitSpecial(u, 'flaming-arrows')">Flaming Arrows (${formatCost(flamingCost)})</button>`);
+      }
+    }
+    if (u.type === "warrior" && u.veteran < 3) {
+      const plateCost = getSpecialUpgradeCost("warrior", "plate-armor");
+      if (plateCost && canAfford(gameState.resources, plateCost)) {
+        specialUpgrades.push(`<button class="action-btn" onclick="window.upgradeUnitSpecial(u, 'plate-armor')">Plate Armor (${formatCost(plateCost)})</button>`);
+      }
+    }
+    if (u.type === "cavalry" && u.veteran < 3) {
+      const horseshoeCost = getSpecialUpgradeCost("cavalry", "horseshoes");
+      if (horseshoeCost && canAfford(gameState.resources, horseshoeCost)) {
+        specialUpgrades.push(`<button class="action-btn" onclick="window.upgradeUnitSpecial(u, 'horseshoes')">Horseshoes (${formatCost(horseshoeCost)})</button>`);
+      }
+    }
+    if (u.type === "samurai" && u.veteran < 3) {
+      const stanceCost = getSpecialUpgradeCost("samurai", "samurai-stance");
+      if (stanceCost && canAfford(gameState.resources, stanceCost)) {
+        specialUpgrades.push(`<button class="action-btn" onclick="window.upgradeUnitSpecial(u, 'samurai-stance')">New Stance (${formatCost(stanceCost)})</button>`);
+      }
+    }
+    selectedInfo.innerHTML = `<h4>${def.symbol} ${def.name} ${vetDisplay}</h4><p>HP: ${Math.floor(u.hp)}/${u.maxHp}</p><p>ATK: ${u.attack} | ARM: ${u.armor}</p><p>Range: ${u.range}</p><p>Task: ${u.task}</p>${vetBtn}${garrisonBtn}${stopBtn}<div style="margin-top:8px;">${specialUpgrades.join(" ")}</div>`;
     if (unitActions) unitActions.style.display = "flex";
     if (formationControls) formationControls.style.display = "flex";
   } else if (gameState.selectedUnits.length > 1) {

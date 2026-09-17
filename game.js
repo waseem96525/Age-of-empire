@@ -7,6 +7,13 @@ const CAMERA_SPEED = 360;
 
 const TILE = { GRASS: 0, WATER: 1, FOREST: 2, MOUNTAIN: 3, SAND: 4, PATH: 5 };
 
+const AGES = {
+  1: { name: "Dark Age", minVillageLevel: 1, maxVillageLevel: 2, unlocks: ["TOWN_CENTER", "HOUSE", "BARRACKS", "FARM", "LUMBER_CAMP", "MINE", "WALL", "STABLE", "peasant", "warrior", "archer", "samurai", "spearman", "cavalry"] },
+  2: { name: "Feudal Age", minVillageLevel: 3, maxVillageLevel: 5, unlocks: ["BOMBARD", "CASTLE", "TOWN_CENTER_UPGRADE", "Horse Archer", "Ram", "Siege Tower"] },
+  3: { name: "Castle Age", minVillageLevel: 6, maxVillageLevel: 8, unlocks: ["Keen Arrow", "Charter", "Ship", "Catapult", "ONager", "Mangonel"] },
+  4: { name: "Imperial Age", minVillageLevel: 9, maxVillageLevel: 10, unlocks: ["Redemption", "Firing Line", "Monastery", "Heavy Scorpion", "Tower Shield"] }
+};
+
 const BUILDINGS = {
   TOWN_CENTER: { name: "Town Center", cost: { food: 100, wood: 100, gold: 0, stone: 50 }, hp: 1000, radius: 3, produces: ["peasant"], pop: 50 },
   HOUSE: { name: "House", cost: { food: 0, wood: 50, gold: 0, stone: 0 }, hp: 200, radius: 1, produces: [], pop: 10 },
@@ -66,7 +73,10 @@ let gameState = {
   buildingsBuilt: 0,
   unitsTrained: 0,
   villageXP: 0,
-  nextLevelXP: 100
+  nextLevelXP: 100,
+  age: 1,
+  ageTimer: 0,
+  ageUpCost: { food: 300, wood: 300, gold: 300, stone: 200 }
 };
 
 function initGameState() {
@@ -92,8 +102,9 @@ function initGameState() {
   gameState.unitsTrained = 0;
   gameState.villageXP = 0;
   gameState.nextLevelXP = 100;
-  gameState.isDragging = false;
-  gameState.techLevels = { food: 0, wood: 0, gold: 0, stone: 0 };
+  gameState.age = 1;
+  gameState.ageTimer = 0;
+  gameState.ageUpCost = { food: 300, wood: 300, gold: 300, stone: 200 };
   for (let y = 0; y < MAP_HEIGHT; y++) {
     gameState.fogOfWar[y] = [];
     for (let x = 0; x < MAP_WIDTH; x++) {
@@ -212,6 +223,86 @@ function findPath(startX, startY, endX, endY) {
 
 function isMilitary(type) { return type !== "peasant"; }
 function isWorker(type) { return type === "peasant"; }
+function advanceAge() {
+  const newAge = gameState.age + 1;
+  if (newAge > Object.keys(AGES).length) {
+    addNotification("Maximum age reached");
+    return false;
+  }
+  const ageData = AGES[newAge];
+  if (gameState.villageLevel < ageData.minVillageLevel) {
+    addNotification(`Advance village to Level ${ageData.minVillageLevel} first`);
+    return false;
+  }
+  if (!canAfford(gameState.resources, gameState.ageUpCost)) {
+    addNotification(`Cannot afford Age up: ${formatCost(gameState.ageUpCost)}`);
+    return false;
+  }
+  spendResources(gameState.resources, gameState.ageUpCost);
+  gameState.age = newAge;
+  gameState.ageTimer = 0;
+  
+  // Increase age up cost for next age
+  gameState.ageUpCost = {
+    food: gameState.ageUpCost.food + 200,
+    wood: gameState.ageUpCost.wood + 200,
+    gold: gameState.ageUpCost.gold + 200,
+    stone: gameState.ageUpCost.stone + 100
+  };
+  
+  addNotification(`Advanced to ${ageData.name}!`);
+  
+  // Unlock new buildings/units
+  const unlocked = ageData.unlocks || [];
+  for (const unlock of unlocked) {
+    if (unlock === "peasant") {
+      addNotification("Peasant training unlocked");
+    } else if (unlock === "warrior") {
+      addNotification("Warrior unit unlocked");
+    } else if (unlock === "archer") {
+      addNotification("Archer unit unlocked");
+    } else if (unlock === "samurai") {
+      addNotification("Samurai unit unlocked");
+    } else if (unlock === "spearman") {
+      addNotification("Spearman unit unlocked");
+    } else if (unlock === "cavalry") {
+      addNotification("Cavalry unit unlocked");
+    } else if (unlock === "BOMBARD") {
+      addNotification("Bombard tower unlocked");
+    } else if (unlock === "Horse Archer") {
+      addNotification("Horse Archer unit unlocked");
+    } else if (unlock === "Ram") {
+      addNotification("Ram siege weapon unlocked");
+    } else if (unlock === "Siege Tower") {
+      addNotification("Siege Tower unlocked");
+    } else if (unlock === "Keen Arrow") {
+      addNotification("Keen Arrow technology unlocked");
+    } else if (unlock === "Charter") {
+      addNotification("Charter technology unlocked");
+    } else if (unlock === "Ship") {
+      addNotification("Ship technology unlocked");
+    } else if (unlock === "Catapult") {
+      addNotification("Catapult unlocked");
+    } else if (unlock === "ONager") {
+      addNotification("ONager unlocked");
+    } else if (unlock === "Mangonel") {
+      addNotification("Mangonel unlocked");
+    } else if (unlock === "Redemption") {
+      addNotification("Redemption technology unlocked");
+    } else if (unlock === "Firing Line") {
+      addNotification("Firing Line technology unlocked");
+    } else if (unlock === "Monastery") {
+      addNotification("Monastery technology unlocked");
+    } else if (unlock === "Heavy Scorpion") {
+      addNotification("Heavy Scorpion unlocked");
+    } else if (unlock === "Tower Shield") {
+      addNotification("Tower Shield technology unlocked");
+    }
+  }
+  
+  updateBuildButtons();
+  return true;
+}
 
 window.gameState = gameState;
 window.TILE = TILE;

@@ -64,15 +64,78 @@ function upgradeUnit(unit) {
   spendResources(gameState.resources, cost);
   unit.veteran++;
   const bonus = 1 + unit.veteran * 0.15; // 15% per level
-  unit.hp = Math.floor(UNITS[unit.type.toUpperCase()].hp * bonus);
+  const def = UNITS[unit.type.toUpperCase()];
+  unit.hp = Math.floor(def.hp * bonus);
   unit.maxHp = unit.hp;
-  unit.attack = Math.floor(UNITS[unit.type.toUpperCase()].attack * bonus);
-  unit.armor = Math.floor(UNITS[unit.type.toUpperCase()].armor * bonus);
+  unit.attack = Math.floor(def.attack * bonus);
+  unit.armor = Math.floor(def.armor * bonus);
   unit.speed *= 1.05;
+  
+  // Apply tech bonuses
+  const techBonuses = {
+    warriorAttack: getTechEffect("warriorAttack"),
+    archerRange: getTechEffect("archerRange"),
+    archerAttack: getTechEffect("archerAttack"),
+    cavalrySpeed: getTechEffect("cavalrySpeed"),
+    cavalryAttack: getTechEffect("cavalryAttack"),
+  };
+  
+  if (unit.type === "warrior") unit.attack *= (1 + (techBonuses.warriorAttack || 0));
+  if (unit.type === "archer") {
+    unit.range += (techBonuses.archerRange || 0);
+    unit.attack *= (1 + (techBonuses.archerAttack || 0));
+  }
+  if (unit.type === "cavalry") {
+    unit.speed *= (1 + (techBonuses.cavalrySpeed || 0));
+    unit.attack *= (1 + (techBonuses.cavalryAttack || 0));
+  }
+  
   addNotification(`${UNITS[unit.type.toUpperCase()].name} promoted to Veteran Lv.${unit.veteran}`);
   addParticle(unit.x * TILE_SIZE + TILE_SIZE / 2, unit.y * TILE_SIZE + TILE_SIZE / 2, "#ffd700", 20);
   Sound.playTrain();
   return true;
+}
+
+// Special unit upgrades unlocked by technologies
+function upgradeUnitSpecial(unit, upgradeType) {
+  if (!unit || !unit.alive) return false;
+  const def = UNITS[unit.type.toUpperCase()];
+  const cost = getSpecialUpgradeCost(unit.type, upgradeType);
+  if (!cost || !canAfford(gameState.resources, cost)) return false;
+  
+  spendResources(gameState.resources, cost);
+  
+  if (upgradeType === "flaming-arrows" && unit.type === "archer") {
+    unit.attack += 10;
+    addNotification("Archers have flaming arrows - +10 attack");
+  } else if (upgradeType === "plate-armor" && unit.type === "warrior") {
+    unit.armor += 3;
+    addNotification("Warriors have plate armor - +3 armor");
+  } else if (upgradeType === "horseshoes" && unit.type === "cavalry") {
+    unit.speed *= 1.1;
+    addNotification("Cavalry has horseshoes - +10% speed");
+  } else if (upgradeType === "samurai-stance" && unit.type === "samurai") {
+    unit.attack += 8;
+    addNotification("Samurai mastered new stance - +8 attack");
+  }
+  
+  addParticle(unit.x * TILE_SIZE + TILE_SIZE / 2, unit.y * TILE_SIZE + TILE_SIZE / 2, "#ffd700", 15);
+  Sound.playTrain();
+  return true;
+}
+
+function getSpecialUpgradeCost(type, upgradeLevel) {
+  const baseCosts = {
+    archer: { "flaming-arrows": { food: 50, wood: 30, gold: 50, stone: 25 } },
+    warrior: { "plate-armor": { food: 80, wood: 40, gold: 80, stone: 30 } },
+    cavalry: { "horseshoes": { food: 60, wood: 30, gold: 60, stone: 25 } },
+    samurai: { "samurai-stance": { food: 70, wood: 35, gold: 70, stone: 25 } }
+  };
+  
+  const costs = baseCosts[type] || {};
+  const cost = costs[upgradeLevel];
+  if (!cost) return null;
+  return cost;
 }
 
 function getUpgradeCost(type, level) {
@@ -960,6 +1023,7 @@ window.unitStop = unitStop;
 window.unitAttackMove = unitAttackMove;
 window.advanceCommand = advanceCommand;
 window.upgradeUnit = upgradeUnit;
+window.upgradeUnitSpecial = upgradeUnitSpecial;
 window.getUpgradeCost = getUpgradeCost;
 window.garrisonUnit = garrisonUnit;
 window.ungarrison = ungarrison;

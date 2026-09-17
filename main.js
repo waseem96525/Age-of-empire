@@ -150,6 +150,12 @@ document.addEventListener("keydown", (e) => {
     gameState.selectedUnits = [];
     gameState.selectedBuilding = null;
   }
+  if (e.key === "`" && !e.ctrlKey && !e.shiftKey) {
+    e.preventDefault();
+    if (gameState.started && !gameState.paused && !gameState.gameOver) {
+      advanceAge();
+    }
+  }
 });
 
 document.addEventListener("keyup", (e) => {
@@ -639,6 +645,7 @@ function update(dt) {
     return p.life > 0;
   });
   checkGameOver();
+  checkCampaignProgress();
   updateUI();
   if (gameState.keys.w) gameState.camera.y -= CAMERA_SPEED * dt;
   if (gameState.keys.s) gameState.camera.y += CAMERA_SPEED * dt;
@@ -729,6 +736,168 @@ function restartGame() {
   gameState.started = true;
   gameState.lastTime = performance.now();
   ensureGameLoop();
+}
+
+function startGame() {
+  document.getElementById("start-screen").classList.add("hidden");
+  Sound.resume();
+  Sound.playGameStart();
+  Sound.startMusic();
+  gameState.started = true;
+  initGameState();
+  generateMap();
+  const centerX = Math.floor(MAP_WIDTH / 2);
+  const centerY = Math.floor(MAP_HEIGHT / 2);
+  gameState.camera.x = centerX * TILE_SIZE + TILE_SIZE / 2;
+  gameState.camera.y = centerY * TILE_SIZE + TILE_SIZE / 2;
+  const tc = createBuilding("TOWN_CENTER", centerX, centerY, 0, gameState.resources);
+  if (tc) {
+    gameState.buildings.push(tc);
+  }
+  for (let i = 0; i < 5; i++) {
+    const unit = createUnit("peasant", centerX + (Math.random() - 0.5), centerY + (Math.random() - 0.5), 0, gameState.resources, gameState, true);
+    if (unit) {
+      gameState.units.push(unit);
+      gameState.population += unit.pop;
+    }
+  }
+  initAI(1);
+  initAI(2);
+  initAI(3);
+  // Setup campaign
+  setupCampaign();
+  addNotification("Your dynasty has begun");
+  addNotification("Build a Town Center and train peasants");
+  gameState.lastTime = performance.now();
+  ensureGameLoop();
+}
+
+function setupCampaign() {
+  // Campaign state
+  gameState.campaign = gameState.campaign || {
+    active: false,
+    currentMission: 0,
+    missions: [
+      {
+        id: "c01",
+        name: "Tutorial: Beginnings",
+        description: "Build your first Town Center and gather resources",
+        objectives: [
+          { type: "build", target: "TOWN_CENTER", count: 1 },
+          { type: "gather", target: "food", amount: 100 }
+        ],
+        completed: false,
+        won: false
+      },
+      {
+        id: "c02",
+        name: "First Expansion",
+        description: "Expand your village and build a Barracks",
+        objectives: [
+          { type: "build", target: "BARRACKS", count: 1 },
+          { type: "train", target: "warrior", count: 3 }
+        ],
+        completed: false,
+        won: false
+      },
+      {
+        id: "c03",
+        name: "Resource Control",
+        description: "Secure gold and stone resources",
+        objectives: [
+          { type: "gather", target: "gold", amount: 50 },
+          { type: "gather", target: "stone", amount: 30 }
+        ],
+        completed: false,
+        won: false
+      },
+      {
+        id: "c04",
+        name: "Military Dominance",
+        description: "Defeat the enemy Town Center",
+        objectives: [
+          { type: "attack", targetType: "building", targetCount: 1 }
+        ],
+        completed: false,
+        won: false
+      }
+    ]
+  };
+  
+  gameState.campaign.active = true;
+  gameState.campaign.currentMission = 0;
+  showMissionObjective();
+}
+
+function showMissionObjective() {
+  if (!gameState.campaign || !gameState.campaign.active) return;
+  const mission = gameState.campaign.missions[gameState.campaign.currentMission];
+  if (!mission) {
+    addNotification("All campaign missions complete!");
+    endCampaign();
+    return;
+  }
+  
+  const objText = mission.objectives.map(obj => {
+    if (obj.type === "build") {
+      return `Build ${BUILDINGS[obj.target]?.name || obj.target}: ${obj.count}`;
+    } else if (obj.type === "train") {
+      return `Train ${UNITS[obj.target.toUpperCase()]?.name || obj.target}: ${obj.count}`;
+    } else if (obj.type === "gather") {
+      return `Gather ${obj.target}: ${obj.amount}`;
+    } else if (obj.type === "attack") {
+      return `Destroy ${obj.targetCount} enemy building(s)`;
+    }
+    return "";
+  }).join(" | ");
+  
+  addNotification(`Mission ${gameState.campaign.currentMission + 1}: ${mission.name} - ${objText}`);
+}
+
+function endCampaign() {
+  gameState.campaign.active = false;
+  addNotification("Campaign completed! Great victory!");
+  // Continue to free play mode
+  document.getElementById("start-screen").classList.add("hidden");
+}
+
+function checkCampaignProgress() {
+  if (!gameState.campaign || !gameState.campaign.active) return;
+  
+  const mission = gameState.campaign.missions[gameState.campaign.currentMission];
+  if (!mission || mission.won) return;
+  
+  let allCompleted = mission.objectives.every(obj => {
+    if (obj.type === "build") {
+      return gameState.buildings.filter(b => b.playerIndex === 0 && b.type === obj.target).length >= obj.count;
+    } else if (obj.type === "train") {
+      const trained = gameState.units.filter(u => u.playerIndex === 0 && u.type === obj.target && u.alive).length;
+      return trained >= obj.count;
+    } else if (obj.type === "gather") {
+      // Check gathered resources from all units
+      let gathered = 0;
+      for (const u of gameState.units) {
+        if (u.playerIndex === 0 && u.task === "gather" && u.gatherType === obj.target) {
+          gathered += (u.gatherDone ? 1 : 0);
+        }
+      }
+      return gathered >= obj.amount;
+    } else if (obj.type === "attack") {
+      const enemyTC = gameState.buildings.find(b => b.playerIndex !== 0 && b.type === "TOWN_CENTER" && b.hp > 0);
+      return !enemyTC;
+    }
+    return false;
+  });
+  
+  if (allCompleted) {
+    mission.completed = true;
+    gameState.campaign.currentMission++;
+    showMissionObjective();
+    
+    if (gameState.campaign.currentMission >= gameState.campaign.missions.length) {
+      endCampaign();
+    }
+  }
 }
 
 function togglePause() {
