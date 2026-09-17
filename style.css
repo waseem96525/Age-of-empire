@@ -108,6 +108,46 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.save-controls {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  padding: 4px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(10px);
+}
+
+.save-controls button,
+.load-game-start {
+  border: 1px solid rgba(240, 192, 64, 0.45);
+  border-radius: 6px;
+  background: rgba(240, 192, 64, 0.12);
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.save-controls button {
+  min-height: 26px;
+  padding: 4px 8px;
+}
+
+.save-controls button:hover:not(:disabled),
+.load-game-start:hover:not(:disabled) {
+  background: rgba(240, 192, 64, 0.25);
+}
+
+.save-controls button:disabled,
+.load-game-start:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
 .build-panel {
   position: absolute;
   left: 14px;
@@ -398,6 +438,13 @@ body {
   font-weight: 900;
   letter-spacing: 0.02em;
   box-shadow: 0 8px 24px rgba(217, 159, 37, 0.25);
+}
+
+.load-game-start {
+  display: block;
+  width: 210px;
+  min-height: 40px;
+  margin: 10px auto 0;
 }
 
 .start-btn:hover {

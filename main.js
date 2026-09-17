@@ -11,6 +11,8 @@ let isDragging = false;
 let touchStartX = 0, touchStartY = 0;
 let touchLastX = 0, touchLastY = 0;
 let touchDragging = false;
+let gameLoopStarted = false;
+const SAVE_KEY = "asian-dynasty-rts-save-v1";
 
 function resizeCanvas() {
   canvas.width = window.innerWidth;
@@ -33,6 +35,9 @@ function showTooltip(text) {
 
 document.getElementById("start-btn").addEventListener("click", startGame);
 document.getElementById("restart-btn").addEventListener("click", restartGame);
+document.getElementById("save-game-btn").addEventListener("click", saveGame);
+document.getElementById("load-game-btn").addEventListener("click", loadGame);
+document.getElementById("load-game-start-btn").addEventListener("click", loadGame);
 
 document.addEventListener("keydown", (e) => {
   gameState.keys[e.key.toLowerCase()] = true;
@@ -378,6 +383,100 @@ function renderParticles(ctx) {
   }
 }
 
+function getSavedGame() {
+  try {
+    const rawSave = localStorage.getItem(SAVE_KEY);
+    if (!rawSave) return null;
+    const save = JSON.parse(rawSave);
+    return save && save.version === 1 && Array.isArray(save.mapData) && Array.isArray(save.units) && Array.isArray(save.buildings) ? save : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function updateSaveButtons() {
+  const hasSave = Boolean(getSavedGame());
+  document.getElementById("load-game-btn").disabled = !hasSave;
+  document.getElementById("load-game-start-btn").disabled = !hasSave;
+}
+
+function saveGame() {
+  if (!gameState.started || gameState.gameOver) return;
+  const save = {
+    version: 1,
+    mapData: window.mapData.map(row => row.slice()),
+    resources: { ...gameState.resources },
+    population: gameState.population,
+    maxPopulation: gameState.maxPopulation,
+    camera: { ...gameState.camera },
+    gameTime: gameState.gameTime,
+    buildings: gameState.buildings,
+    units: gameState.units,
+    resourcesOnMap: gameState.resourcesOnMap,
+    fogOfWar: gameState.fogOfWar,
+    aiPlayers: gameState.aiPlayers.map(({ buildings, units, ...ai }) => ({
+      ...ai,
+      buildingIds: buildings.map(building => building.id),
+      unitIds: units.map(unit => unit.id)
+    })),
+    notifications: gameState.notifications.slice(-10),
+    selectedUnitIds: gameState.selectedUnits.map(unit => unit.id),
+    selectedBuildingId: gameState.selectedBuilding ? gameState.selectedBuilding.id : null
+  };
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+    addNotification("Game saved to this browser");
+    updateSaveButtons();
+  } catch (error) {
+    addNotification("Unable to save game in this browser");
+  }
+}
+
+function loadGame() {
+  const save = getSavedGame();
+  if (!save) return;
+  const buildingById = new Map(save.buildings.map(building => [building.id, building]));
+  const unitById = new Map(save.units.map(unit => [unit.id, unit]));
+  const aiPlayers = save.aiPlayers.map(({ buildingIds = [], unitIds = [], ...ai }) => ({
+    ...ai,
+    buildings: buildingIds.map(id => buildingById.get(id)).filter(Boolean),
+    units: unitIds.map(id => unitById.get(id)).filter(Boolean)
+  }));
+
+  window.mapData.length = 0;
+  for (const row of save.mapData) window.mapData.push(row.slice());
+  Object.assign(gameState, {
+    started: true,
+    paused: false,
+    gameTime: save.gameTime,
+    selectedUnits: save.selectedUnitIds.map(id => unitById.get(id)).filter(Boolean),
+    selectedBuilding: save.selectedBuildingId ? buildingById.get(save.selectedBuildingId) || null : null,
+    hoverTile: null,
+    buildMode: null,
+    camera: { ...save.camera },
+    keys: {},
+    resources: { ...save.resources },
+    population: save.population,
+    maxPopulation: save.maxPopulation,
+    buildings: save.buildings,
+    units: save.units,
+    resourcesOnMap: save.resourcesOnMap,
+    particles: [],
+    gameOver: false,
+    winner: null,
+    aiPlayers,
+    fogOfWar: save.fogOfWar,
+    notifications: save.notifications || [],
+    logTimer: 0,
+    lastTime: performance.now()
+  });
+  document.getElementById("start-screen").classList.add("hidden");
+  document.getElementById("game-over-screen").classList.add("hidden");
+  addNotification("Saved dynasty loaded");
+  updateUI();
+  ensureGameLoop();
+}
+
 function update(dt) {
   if (gameState.paused || gameState.gameOver) return;
   gameState.gameTime += dt;
@@ -400,17 +499,19 @@ function update(dt) {
 }
 
 function gameLoop(timestamp) {
-  if (!gameState.lastTime) {
-    gameState.lastTime = timestamp;
-    requestAnimationFrame(gameLoop);
-    return;
-  }
   const dt = Math.min((timestamp - gameState.lastTime) / 1000, 0.1);
   gameState.lastTime = timestamp;
   if (!gameState.paused && !gameState.gameOver) {
     update(dt);
   }
   render();
+  requestAnimationFrame(gameLoop);
+}
+
+function ensureGameLoop() {
+  if (gameLoopStarted) return;
+  gameLoopStarted = true;
+  gameState.lastTime = performance.now();
   requestAnimationFrame(gameLoop);
 }
 
@@ -439,8 +540,8 @@ function startGame() {
   initAI(3);
   addNotification("Your dynasty has begun");
   addNotification("Build a Town Center and train peasants");
-  gameState.lastTime = 0;
-  gameLoop(performance.now());
+  gameState.lastTime = performance.now();
+  ensureGameLoop();
 }
 
 function restartGame() {
@@ -472,8 +573,8 @@ function restartGame() {
   initAI(2);
   initAI(3);
   gameState.started = true;
-  gameState.lastTime = 0;
-  gameLoop(performance.now());
+  gameState.lastTime = performance.now();
+  ensureGameLoop();
 }
 
 function togglePause() {
@@ -484,9 +585,12 @@ document.addEventListener("DOMContentLoaded", () => {
   resizeCanvas();
   generateMap();
   initializeResourceEditor();
+  updateSaveButtons();
   updateUI();
 });
 
 window.gameLoop = gameLoop;
 window.resizeCanvas = resizeCanvas;
 window.showTooltip = showTooltip;
+window.saveGame = saveGame;
+window.loadGame = loadGame;
