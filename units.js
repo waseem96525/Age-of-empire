@@ -31,7 +31,11 @@ function createUnit(type, x, y, playerIndex, wallet, popObj, isFree = false) {
     id: Date.now() + Math.random(),
     alive: true,
     symbol: unitDef.symbol,
-    color: unitDef.color
+    color: unitDef.color,
+    // Enhanced: animation frame counter
+    animFrame: 0,
+    // Enhanced: squish animation for attacks
+    squish: 0
   };
   if (unit.type === "peasant") {
     unit.gatherType = "food";
@@ -57,6 +61,11 @@ function updateUnits(dt) {
     if (!u.alive) continue;
     u.attackTimer = Math.max(0, u.attackTimer - dt);
     u.gatherTimer = Math.max(0, u.gatherTimer - dt);
+    u.animFrame += dt * 8; // Animation speed
+    
+    // Squish recovery
+    u.squish = Math.max(0, u.squish - dt * 3);
+    
     if (u.playerIndex === 0) {
       if (u.task === "gather" && u.gatherType) {
         const dx = u.targetX - u.x;
@@ -111,6 +120,7 @@ function updateUnits(dt) {
             const dmg = Math.max(1, u.attack - (target.armor || 0));
             target.hp -= dmg;
             u.attackTimer = 1;
+            u.squish = 0.3; // Squish on attack
             addParticle(target.x * TILE_SIZE + TILE_SIZE / 2, target.y * TILE_SIZE + TILE_SIZE / 2, "#f44336", 5);
             if (target.hp <= 0) {
               if (targetUnit) { targetUnit.alive = false; gameState.population -= targetUnit.pop; }
@@ -197,18 +207,40 @@ function unitRepair(unit, buildingId) {
   unit.gatherTimer = 0;
 }
 
+// Enhanced health bar with gradient and outline
 function drawUnitHealthBar(ctx, u, cx, y, ts) {
   if (u.hp >= u.maxHp) return;
   const barW = ts * 0.58;
   const barH = Math.max(3, ts * 0.07);
   const hpRatio = u.hp / u.maxHp;
   const hpColor = hpRatio > 0.5 ? "#64b852" : hpRatio > 0.25 ? "#e1a93d" : "#bf3e34";
+  
+  // Dark background with rounded corners
   ctx.fillStyle = "rgba(20, 18, 12, 0.8)";
-  ctx.fillRect(cx - barW / 2, y, barW, barH);
-  ctx.fillStyle = hpColor;
+  ctx.beginPath();
+  const r = 2;
+  const bx = cx - barW / 2;
+  ctx.moveTo(bx + r, y);
+  ctx.lineTo(bx + barW - r, y);
+  ctx.quadraticCurveTo(bx + barW, y, bx + barW, y + r);
+  ctx.lineTo(bx + barW, y + barH - r);
+  ctx.quadraticCurveTo(bx + barW, y + barH, bx + barW - r, y + barH);
+  ctx.lineTo(bx + r, y + barH);
+  ctx.quadraticCurveTo(bx, y + barH, bx, y + barH - r);
+  ctx.lineTo(bx, y + r);
+  ctx.quadraticCurveTo(bx, y, bx + r, y);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Health fill with gradient
+  const gradient = ctx.createLinearGradient(cx - barW / 2, y, cx + barW / 2, y);
+  gradient.addColorStop(0, hpColor);
+  gradient.addColorStop(1, hpColor + "cc");
+  ctx.fillStyle = gradient;
   ctx.fillRect(cx - barW / 2 + 1, y + 1, Math.max(0, (barW - 2) * hpRatio), Math.max(1, barH - 2));
 }
 
+// Enhanced unit drawing with animation
 function drawUnitSilhouette(ctx, u, cx, cy, ts) {
   const scale = ts / 40;
   const teamColor = PLAYER_COLORS[u.playerIndex] || "#4caf50";
@@ -216,116 +248,134 @@ function drawUnitSilhouette(ctx, u, cx, cy, ts) {
   const darkSkin = "#a86f4c";
   const robe = u.type === "peasant" ? "#8e7355" : u.type === "archer" ? "#557a3c" : "#7d3f36";
   const metal = "#c8c5b8";
-
+  
+  // Walking animation offset (bob up and down)
+  const walkCycle = Math.sin(u.animFrame * Math.PI) * (u.task === "move" || u.task === "gather" ? 2 : 0);
+  
   ctx.save();
-  ctx.translate(cx, cy);
+  ctx.translate(cx, cy + walkCycle); // Apply bob
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-
+  
+  // Attack squish effect
+  const squishX = 1 + u.squish * 0.3;
+  const squishY = 1 - u.squish * 0.3;
+  ctx.scale(squishX, squishY);
+  
+  // Shadow with soft edge
   ctx.fillStyle = "rgba(23, 30, 18, 0.32)";
   ctx.beginPath();
-  ctx.ellipse(0, ts * 0.22, ts * 0.25, ts * 0.1, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, ts * 0.22 + walkCycle * 0.5, ts * 0.25, ts * 0.1, 0, 0, Math.PI * 2);
   ctx.fill();
-
+  
   if (u.type === "cavalry") {
     ctx.fillStyle = "#805039";
     ctx.beginPath();
-    ctx.ellipse(-ts * 0.04, ts * 0.07, ts * 0.27, ts * 0.17, 0, 0, Math.PI * 2);
+    ctx.ellipse(-ts * 0.04, ts * 0.07 + walkCycle * 0.5, ts * 0.27, ts * 0.17, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "#6a3c2b";
-    ctx.fillRect(ts * 0.17, -ts * 0.05, ts * 0.12, ts * 0.2);
+    ctx.fillRect(ts * 0.17, -ts * 0.05 + walkCycle, ts * 0.12, ts * 0.2);
     ctx.fillStyle = "#35251f";
-    ctx.fillRect(-ts * 0.18, ts * 0.17, ts * 0.06, ts * 0.14);
-    ctx.fillRect(ts * 0.1, ts * 0.17, ts * 0.06, ts * 0.14);
+    ctx.fillRect(-ts * 0.18, ts * 0.17 + walkCycle, ts * 0.06, ts * 0.14);
+    ctx.fillRect(ts * 0.1, ts * 0.17 + walkCycle, ts * 0.06, ts * 0.14);
     ctx.fillStyle = "#b89152";
-    ctx.fillRect(-ts * 0.19, -ts * 0.02, ts * 0.28, ts * 0.08);
+    ctx.fillRect(-ts * 0.19, -ts * 0.02 + walkCycle, ts * 0.28, ts * 0.08);
   }
-
+  
   const riderOffset = u.type === "cavalry" ? -ts * 0.12 : 0;
   ctx.fillStyle = "#30383d";
-  ctx.fillRect(-ts * 0.11, riderOffset + ts * 0.08, ts * 0.08, ts * 0.18);
-  ctx.fillRect(ts * 0.03, riderOffset + ts * 0.08, ts * 0.08, ts * 0.18);
-
+  ctx.fillRect(-ts * 0.11, riderOffset + ts * 0.08 + walkCycle, ts * 0.08, ts * 0.18);
+  ctx.fillRect(ts * 0.03, riderOffset + ts * 0.08 + walkCycle, ts * 0.08, ts * 0.18);
+  
   ctx.fillStyle = u.type === "samurai" ? "#38454d" : robe;
   ctx.beginPath();
-  ctx.moveTo(-ts * 0.16, riderOffset - ts * 0.05);
-  ctx.lineTo(ts * 0.16, riderOffset - ts * 0.05);
-  ctx.lineTo(ts * 0.12, riderOffset + ts * 0.16);
-  ctx.lineTo(-ts * 0.12, riderOffset + ts * 0.16);
+  ctx.moveTo(-ts * 0.16, riderOffset - ts * 0.05 + walkCycle);
+  ctx.lineTo(ts * 0.16, riderOffset - ts * 0.05 + walkCycle);
+  ctx.lineTo(ts * 0.12, riderOffset + ts * 0.16 + walkCycle);
+  ctx.lineTo(-ts * 0.12, riderOffset + ts * 0.16 + walkCycle);
   ctx.closePath();
   ctx.fill();
-
+  
   ctx.fillStyle = teamColor;
-  ctx.fillRect(-ts * 0.16, riderOffset + ts * 0.02, ts * 0.32, ts * 0.055);
+  ctx.fillRect(-ts * 0.16, riderOffset + ts * 0.02 + walkCycle, ts * 0.32, ts * 0.055);
   ctx.fillStyle = darkSkin;
   ctx.beginPath();
-  ctx.arc(0, riderOffset - ts * 0.13, ts * 0.1, 0, Math.PI * 2);
+  ctx.arc(0, riderOffset - ts * 0.13 + walkCycle, ts * 0.1, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = skin;
   ctx.beginPath();
-  ctx.arc(-ts * 0.015, riderOffset - ts * 0.145, ts * 0.082, 0, Math.PI * 2);
+  ctx.arc(-ts * 0.015, riderOffset - ts * 0.145 + walkCycle, ts * 0.082, 0, Math.PI * 2);
   ctx.fill();
-
+  
   if (u.type === "peasant") {
+    // Enhanced farmer with tool animation
+    const toolSwing = Math.sin(u.animFrame * 0.5) * 0.2 * (u.task === "gather" ? 1 : 0);
     ctx.fillStyle = "#c8a55a";
     ctx.beginPath();
-    ctx.ellipse(0, riderOffset - ts * 0.205, ts * 0.13, ts * 0.042, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, riderOffset - ts * 0.205 + walkCycle, ts * 0.13, ts * 0.042, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = "#744826";
     ctx.lineWidth = Math.max(2, 2.5 * scale);
     ctx.beginPath();
-    ctx.moveTo(ts * 0.12, riderOffset + ts * 0.01);
-    ctx.lineTo(ts * 0.27, riderOffset - ts * 0.2);
+    ctx.moveTo(ts * 0.12, riderOffset + ts * 0.01 + walkCycle);
+    ctx.lineTo(ts * 0.27 + toolSwing * ts, riderOffset - ts * 0.2 + walkCycle);
     ctx.stroke();
     ctx.strokeStyle = "#a2a7a1";
     ctx.beginPath();
-    ctx.moveTo(ts * 0.22, riderOffset - ts * 0.22);
-    ctx.lineTo(ts * 0.31, riderOffset - ts * 0.16);
+    ctx.moveTo(ts * 0.22, riderOffset - ts * 0.22 + walkCycle);
+    ctx.lineTo(ts * 0.31, riderOffset - ts * 0.16 + walkCycle);
     ctx.stroke();
   } else if (u.type === "archer") {
+    // Enhanced archer with bow animation
+    const bowAnimate = Math.sin(u.animFrame * 0.7) * 0.1 * (u.task === "attack" ? 1 : 0);
     ctx.strokeStyle = "#8a5b32";
     ctx.lineWidth = Math.max(2, 2.4 * scale);
     ctx.beginPath();
-    ctx.arc(ts * 0.2, riderOffset, ts * 0.16, -Math.PI / 2, Math.PI / 2);
+    ctx.arc(ts * 0.2 + bowAnimate * ts, riderOffset, ts * 0.16, -Math.PI / 2, Math.PI / 2);
     ctx.stroke();
     ctx.strokeStyle = "#e6d4a9";
     ctx.lineWidth = Math.max(1, scale);
     ctx.beginPath();
-    ctx.moveTo(ts * 0.2, riderOffset - ts * 0.16);
-    ctx.lineTo(ts * 0.2, riderOffset + ts * 0.16);
+    ctx.moveTo(ts * 0.2 + bowAnimate * ts, riderOffset - ts * 0.16);
+    ctx.lineTo(ts * 0.2 + bowAnimate * ts, riderOffset + ts * 0.16);
     ctx.stroke();
   } else if (u.type === "samurai") {
+    // Enhanced samurai with attack animation
+    const swordSwing = Math.sin(u.animFrame * 1.2) * 0.4 * (u.task === "attack" ? 1 : 0);
     ctx.fillStyle = "#252b30";
     ctx.beginPath();
-    ctx.arc(0, riderOffset - ts * 0.2, ts * 0.115, Math.PI, 0);
+    ctx.arc(0, riderOffset - ts * 0.2 + walkCycle, ts * 0.115, Math.PI, 0);
     ctx.fill();
     ctx.fillStyle = "#d1b05f";
-    ctx.fillRect(-ts * 0.13, riderOffset - ts * 0.165, ts * 0.26, ts * 0.035);
+    ctx.fillRect(-ts * 0.13, riderOffset - ts * 0.165 + walkCycle, ts * 0.26, ts * 0.035);
     ctx.strokeStyle = metal;
     ctx.lineWidth = Math.max(2, 2.5 * scale);
     ctx.beginPath();
-    ctx.moveTo(ts * 0.1, riderOffset + ts * 0.08);
-    ctx.lineTo(ts * 0.28, riderOffset - ts * 0.16);
+    ctx.moveTo(ts * 0.1, riderOffset + ts * 0.08 + walkCycle);
+    ctx.lineTo(ts * 0.28 + swordSwing * ts, riderOffset - ts * 0.16 + walkCycle);
     ctx.stroke();
   } else {
+    // Enhanced warrior with weapon animation
     ctx.fillStyle = "#69747a";
     ctx.beginPath();
-    ctx.moveTo(-ts * 0.1, riderOffset - ts * 0.19);
-    ctx.lineTo(ts * 0.1, riderOffset - ts * 0.19);
-    ctx.lineTo(ts * 0.06, riderOffset - ts * 0.28);
-    ctx.lineTo(-ts * 0.06, riderOffset - ts * 0.28);
+    ctx.moveTo(-ts * 0.1, riderOffset - ts * 0.19 + walkCycle);
+    ctx.lineTo(ts * 0.1, riderOffset - ts * 0.19 + walkCycle);
+    ctx.lineTo(ts * 0.06, riderOffset - ts * 0.28 + walkCycle);
+    ctx.lineTo(-ts * 0.06, riderOffset - ts * 0.28 + walkCycle);
     ctx.closePath();
     ctx.fill();
+    const weaponSwing = Math.sin(u.animFrame * 1.2) * 0.3 * (u.task === "attack" ? 1 : 0);
     ctx.strokeStyle = metal;
     ctx.lineWidth = Math.max(2, 2.5 * scale);
     ctx.beginPath();
-    ctx.moveTo(ts * 0.1, riderOffset + ts * 0.08);
-    ctx.lineTo(ts * 0.27, riderOffset - ts * 0.18);
+    ctx.moveTo(ts * 0.1, riderOffset + ts * 0.08 + walkCycle);
+    ctx.lineTo(ts * 0.27 + weaponSwing * ts, riderOffset - ts * 0.18 + walkCycle);
     ctx.stroke();
   }
   ctx.restore();
 }
 
+// Enhanced renderUnits with selection glow and animations
 function renderUnits(ctx) {
   for (const u of gameState.units) {
     if (!u.alive) continue;
@@ -334,11 +384,31 @@ function renderUnits(ctx) {
     const isSelected = gameState.selectedUnits.some(v => v.id === u.id);
     const cx = pos.x + ts / 2;
     const cy = pos.y + ts * 0.54;
+    
     drawUnitSilhouette(ctx, u, cx, cy, ts);
     drawUnitHealthBar(ctx, u, cx, pos.y - ts * 0.08, ts);
+    
+    // Enhanced selection indicator with pulsing glow
     if (isSelected) {
-      ctx.strokeStyle = "#f5d66a";
+      const pulse = 0.7 + Math.sin(u.animFrame) * 0.3;
+      
+      // Outer glow
+      ctx.strokeStyle = `rgba(245, 214, 106, ${pulse * 0.3})`;
+      ctx.lineWidth = Math.max(4, ts * 0.08);
+      ctx.beginPath();
+      ctx.ellipse(cx, pos.y + ts * 0.72, ts * 0.31, ts * 0.14, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // Inner glow
+      ctx.strokeStyle = `rgba(245, 214, 106, ${pulse * 0.6})`;
       ctx.lineWidth = Math.max(2, ts * 0.05);
+      ctx.beginPath();
+      ctx.ellipse(cx, pos.y + ts * 0.72, ts * 0.31, ts * 0.14, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // Core selection line
+      ctx.strokeStyle = "rgba(245, 214, 106, 0.9)";
+      ctx.lineWidth = Math.max(1, ts * 0.025);
       ctx.beginPath();
       ctx.ellipse(cx, pos.y + ts * 0.72, ts * 0.31, ts * 0.14, 0, 0, Math.PI * 2);
       ctx.stroke();
