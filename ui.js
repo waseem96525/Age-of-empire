@@ -140,6 +140,7 @@ function trainUnit(type) {
   productionBuilding.produceQueue.push(type);
   addNotification(`${def.name} queued`);
   addParticle(productionBuilding.x * TILE_SIZE + TILE_SIZE / 2, productionBuilding.y * TILE_SIZE + TILE_SIZE / 2, "#4CAF50", 8);
+  Sound.playTrain();
 }
 
 function updateMinimap() {

@@ -28,6 +28,7 @@ function createBuilding(type, x, y, playerIndex, wallet) {
     addNotification(`${PLAYER_NAMES[playerIndex]} built ${def.name}`);
     addParticle(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2, "#f0c040", 15);
     addParticle(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2, "#fff", 8);
+    Sound.playBuild();
   }
   return building;
 }
@@ -88,6 +89,7 @@ function updateBuildings(dt) {
           gameState.population += unit.pop;
           addNotification(`${unitDef.name} trained`);
           addParticle(b.x * TILE_SIZE + TILE_SIZE / 2, b.y * TILE_SIZE + TILE_SIZE / 2, "#4CAF50", 12);
+          Sound.playTrain();
         }
       }
     }

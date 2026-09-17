@@ -102,8 +102,9 @@ function updateAI(dt) {
       if (enemyUnits.length > 0 || enemyBuildings.length > 0) {
         const target = enemyUnits[Math.floor(Math.random() * enemyUnits.length)] || enemyBuildings[Math.floor(Math.random() * enemyBuildings.length)];
         const attackers = aiUnits.filter(u => u.type !== "peasant").slice(0, 5);
+        const targetType = gameState.units.includes(target) ? "unit" : "building";
         for (const attacker of attackers) {
-          if (target.playerIndex === 0) unitAttack(attacker, target.id in UNITS ? "unit" : "building", target.id);
+          if (target.playerIndex === 0) unitAttack(attacker, targetType, target.id);
         }
       }
     }
@@ -124,6 +125,11 @@ function checkGameOver() {
   if (!playerTC || playerTC.hp <= 0) {
     gameState.gameOver = true;
     gameState.winner = "defeat";
+    Sound.resume();
+    Sound.playDefeat();
+    const overText = document.getElementById("game-over-text");
+    if (overText) overText.textContent = "Defeat!";
+    document.getElementById("game-over-screen").classList.remove("hidden");
     return;
   }
   const allEnemiesDefeated = gameState.aiPlayers.every(ai => {
@@ -134,6 +140,11 @@ function checkGameOver() {
     gameState.gameOver = true;
     gameState.winner = "victory";
     addNotification("Victory: enemy dynasties defeated");
+    Sound.resume();
+    Sound.playVictory();
+    const overText = document.getElementById("game-over-text");
+    if (overText) overText.textContent = "Victory!";
+    document.getElementById("game-over-screen").classList.remove("hidden");
   }
 }
 

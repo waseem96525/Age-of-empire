@@ -20,6 +20,10 @@
         <button id="save-game-btn" type="button" title="Save current game">Save</button>
         <button id="load-game-btn" type="button" title="Load saved game">Load</button>
       </div>
+      <div class="audio-controls" aria-label="Audio controls">
+        <button id="mute-btn" type="button" title="Toggle sound (M)">Sound</button>
+        <button id="music-btn" type="button" title="Toggle music (Shift+M)">Music</button>
+      </div>
     </div>
     <div id="build-panel" class="build-panel">
       <div class="panel-section">
@@ -61,7 +65,9 @@
           <p><strong>Houses:</strong> each House increases your population limit by 10.</p>
           <p><strong>Train:</strong> Town Centers make Peasants; Barracks make Warriors, Archers, and Samurai; Stables make Cavalry.</p>
           <p><strong>Rally:</strong> select a production building, then right-click the map to set its rally point.</p>
-          <p><strong>Command:</strong> select units, then right-click to move or attack.</p>
+          <p><strong>Command:</strong> select units, then right-click to attack, gather, repair, or attack-move. Right-click empty ground attacks while moving.</p>
+          <p><strong>Queue:</strong> hold Shift and right-click to queue commands. Press H to stop selected units.</p>
+          <p><strong>Selection:</strong> Ctrl+Click to toggle units; Ctrl+A selects all.</p>
           <p class="mobile-help"><strong>Mobile:</strong> tap units to select, tap a destination, resource, or enemy to command, and drag the map to pan.</p>
           <p><strong>Win:</strong> destroy all enemy Town Centers.</p>
           <div class="resource-editor">
@@ -110,6 +116,7 @@
     </div>
   </div>
 </div>
+<script src="sound.js"></script>
 <script src="game.js"></script>
 <script src="map.js"></script>
 <script src="resources.js"></script>

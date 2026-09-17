@@ -39,6 +39,11 @@ document.getElementById("save-game-btn").addEventListener("click", saveGame);
 document.getElementById("load-game-btn").addEventListener("click", loadGame);
 document.getElementById("load-game-start-btn").addEventListener("click", loadGame);
 
+const muteBtn = document.getElementById("mute-btn");
+const musicBtn = document.getElementById("music-btn");
+if (muteBtn) muteBtn.addEventListener("click", () => Sound.toggleMute());
+if (musicBtn) musicBtn.addEventListener("click", () => Sound.toggleMusic());
+
 document.addEventListener("keydown", (e) => {
   gameState.keys[e.key.toLowerCase()] = true;
   if (e.key.toLowerCase() === " ") {
@@ -50,6 +55,22 @@ document.addEventListener("keydown", (e) => {
     const idx = parseInt(e.key) - 1;
     const types = ["TOWN_CENTER", "HOUSE", "BARRACKS", "FARM", "LUMBER_CAMP", "MINE", "WALL", "STABLE"];
     if (types[idx]) setBuildMode(types[idx]);
+  }
+  if (e.key.toLowerCase() === "m") {
+    Sound.resume();
+    if (e.shiftKey) Sound.toggleMusic(); else Sound.toggleMute();
+  }
+  if (e.key.toLowerCase() === "h") {
+    Sound.resume();
+    Sound.playClick();
+    gameState.selectedUnits.forEach(u => { unitStop(u); advanceCommand(u); });
+    addNotification("Units stopped");
+  }
+  if (e.ctrlKey && e.key.toLowerCase() === "a") {
+    e.preventDefault();
+    Sound.resume();
+    gameState.selectedUnits = gameState.units.filter(u => u.playerIndex === 0 && u.alive);
+    addNotification(`${gameState.selectedUnits.length} units selected`);
   }
 });
 
@@ -102,7 +123,7 @@ canvas.addEventListener("mousemove", (e) => {
 canvas.addEventListener("mouseup", (e) => {
   if (e.button === 2) {
     if (!isDragging && gameState.started && !gameState.paused) {
-      handleRightClick();
+      handleRightClick(e);
     }
     rightMouseDown = false;
     isDragging = false;
@@ -121,7 +142,7 @@ canvas.addEventListener("mouseup", (e) => {
       );
       gameState.selectedBuilding = null;
     } else {
-      handleLeftClick();
+      handleLeftClick(e);
     }
     mouseDown = false;
     isDragging = false;
@@ -210,7 +231,7 @@ for (const button of document.querySelectorAll("[data-zoom]")) {
   });
 }
 
-function handleLeftClick() {
+function handleLeftClick(e) {
   if (gameState.buildMode) {
     if (isBuildable(gameState.hoverTile.x, gameState.hoverTile.y)) {
       const building = createBuilding(gameState.buildMode, gameState.hoverTile.x, gameState.hoverTile.y, 0, gameState.resources);
@@ -235,7 +256,13 @@ function handleLeftClick() {
     distance(wx, wy, b.x, b.y) < 1
   );
   if (clickedUnit) {
-    gameState.selectedUnits = [clickedUnit];
+    if (e && e.ctrlKey) {
+      const idx = gameState.selectedUnits.findIndex(u => u.id === clickedUnit.id);
+      if (idx >= 0) gameState.selectedUnits.splice(idx, 1);
+      else gameState.selectedUnits = [clickedUnit];
+    } else {
+      gameState.selectedUnits = [clickedUnit];
+    }
     gameState.selectedBuilding = null;
   } else if (clickedBuilding) {
     gameState.selectedBuilding = clickedBuilding;
@@ -250,7 +277,7 @@ function handleLeftClick() {
   }
 }
 
-function handleRightClick() {
+function handleRightClick(e) {
   if (gameState.buildMode) {
     setBuildMode(null);
     return;
@@ -258,6 +285,7 @@ function handleRightClick() {
   const world = getScreenToWorld(mouseX, mouseY);
   const wx = world.x;
   const wy = world.y;
+  const shift = e && e.shiftKey;
   if (gameState.selectedBuilding && gameState.selectedBuilding.playerIndex === 0 && BUILDINGS[gameState.selectedBuilding.type].produces.length > 0) {
     gameState.selectedBuilding.rallyX = clamp(wx, 0, MAP_WIDTH - 1);
     gameState.selectedBuilding.rallyY = clamp(wy, 0, MAP_HEIGHT - 1);
@@ -274,31 +302,43 @@ function handleRightClick() {
       distance(wx, wy, b.x, b.y) < 3
     );
     if (enemyUnit || enemyBuilding) {
+      const cmd = { type: "attack" };
+      if (enemyUnit) { cmd.targetId = enemyUnit.id; cmd.targetType = "unit"; }
+      else { cmd.targetId = enemyBuilding.id; cmd.targetType = "building"; }
       for (const unit of gameState.selectedUnits) {
-        if (enemyUnit) unitAttack(unit, "unit", enemyUnit.id);
-        else unitAttack(unit, "building", enemyBuilding.id);
+        if (shift) { unit.commandQueue.push(cmd); advanceCommand(unit); }
+        else { unit.commandQueue = []; unitAttack(unit, cmd.targetType, cmd.targetId); }
       }
-    } else {
-      const friendlyBuilding = gameState.buildings.find(b =>
-        b.playerIndex === 0 && b.hp < b.maxHp && distance(wx, wy, b.x, b.y) < 2
-      );
-      if (friendlyBuilding) {
-        for (const unit of gameState.selectedUnits) unitRepair(unit, friendlyBuilding.id);
-        return;
-      }
-      const res = gameState.resourcesOnMap.find(r =>
-        !r.depleted && distance(wx, wy, r.x, r.y) <= 3
-      );
-      if (res) {
-        for (const unit of gameState.selectedUnits) {
-          unitGather(unit, res.type);
-        }
-      } else {
-        for (const unit of gameState.selectedUnits) {
-          unitMove(unit, wx, wy);
-        }
-      }
+      return;
     }
+    const friendlyBuilding = gameState.buildings.find(b =>
+      b.playerIndex === 0 && b.hp < b.maxHp && distance(wx, wy, b.x, b.y) < 2
+    );
+    if (friendlyBuilding) {
+      const cmd = { type: "repair", buildingId: friendlyBuilding.id };
+      for (const unit of gameState.selectedUnits) {
+        if (shift) { unit.commandQueue.push(cmd); advanceCommand(unit); }
+        else { unit.commandQueue = []; unitRepair(unit, cmd.buildingId); }
+      }
+      return;
+    }
+    const res = gameState.resourcesOnMap.find(r =>
+      !r.depleted && distance(wx, wy, r.x, r.y) <= 3
+    );
+    if (res) {
+      const cmd = { type: "gather", resType: res.type };
+      for (const unit of gameState.selectedUnits) {
+        if (shift) { unit.commandQueue.push(cmd); advanceCommand(unit); }
+        else { unit.commandQueue = []; unitGather(unit, cmd.resType); }
+      }
+      return;
+    }
+    const cmd = { type: "attackMove", tx: wx, ty: wy };
+    for (const unit of gameState.selectedUnits) {
+      if (shift) { unit.commandQueue.push(cmd); advanceCommand(unit); }
+      else { unit.commandQueue = []; unitAttackMove(unit, wx, wy); }
+    }
+    return;
   }
 }
 
@@ -517,6 +557,9 @@ function ensureGameLoop() {
 
 function startGame() {
   document.getElementById("start-screen").classList.add("hidden");
+  Sound.resume();
+  Sound.playGameStart();
+  Sound.startMusic();
   gameState.started = true;
   initGameState();
   generateMap();
@@ -546,6 +589,9 @@ function startGame() {
 
 function restartGame() {
   document.getElementById("game-over-screen").classList.add("hidden");
+  Sound.stopMusic();
+  Sound.playGameStart();
+  Sound.startMusic();
   gameState.started = false;
   gameState.gameOver = false;
   gameState.winner = null;
@@ -587,6 +633,11 @@ document.addEventListener("DOMContentLoaded", () => {
   initializeResourceEditor();
   updateSaveButtons();
   updateUI();
+  document.addEventListener("pointerdown", () => Sound.resume(), { once: true });
+  document.addEventListener("keydown", () => Sound.resume(), { once: true });
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("button, [role=\"button\"]")) Sound.playClick();
+  });
 });
 
 window.gameLoop = gameLoop;

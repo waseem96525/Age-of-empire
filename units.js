@@ -35,7 +35,8 @@ function createUnit(type, x, y, playerIndex, wallet, popObj, isFree = false) {
     // Enhanced: animation frame counter
     animFrame: 0,
     // Enhanced: squish animation for attacks
-    squish: 0
+    squish: 0,
+    commandQueue: [],
   };
   if (unit.type === "peasant") {
     unit.gatherType = "food";
@@ -75,7 +76,7 @@ function updateUnits(dt) {
           if (u.gatherDone === false) collectResource(u);
           const next = findNearestResource(u.x, u.y, u.gatherType);
           if (next) { u.targetX = next.x; u.targetY = next.y; u.gatherDone = false; }
-          else { u.task = "idle"; u.gatherType = null; }
+          else { u.task = "idle"; u.gatherType = null; advanceCommand(u); }
         } else {
           u.x += dx / dist * u.speed * dt;
           u.y += dy / dist * u.speed * dt;
@@ -100,6 +101,7 @@ function updateUnits(dt) {
               addNotification("Not enough wood to repair");
               u.task = "idle";
               u.attackTarget = null;
+              advanceCommand(u);
             }
             u.gatherTimer = 0.75;
           }
@@ -111,7 +113,7 @@ function updateUnits(dt) {
         const targetUnit = gameState.units.find(v => v.id === u.attackTarget && v.alive);
         const targetBuilding = gameState.buildings.find(b => b.id === u.attackTarget);
         const target = targetUnit || targetBuilding;
-        if (!target) { u.attackTarget = null; u.attackType = null; u.task = "idle"; continue; }
+        if (!target) { u.attackTarget = null; u.attackType = null; u.task = "idle"; advanceCommand(u); continue; }
         const dx = target.x - u.x;
         const dy = target.y - u.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -120,17 +122,54 @@ function updateUnits(dt) {
             const dmg = Math.max(1, u.attack - (target.armor || 0));
             target.hp -= dmg;
             u.attackTimer = 1;
-            u.squish = 0.3; // Squish on attack
+            u.squish = 0.3;
+            Sound.playAttack();
             addParticle(target.x * TILE_SIZE + TILE_SIZE / 2, target.y * TILE_SIZE + TILE_SIZE / 2, "#f44336", 5);
             if (target.hp <= 0) {
               if (targetUnit) { targetUnit.alive = false; gameState.population -= targetUnit.pop; }
               if (targetBuilding) { targetBuilding.hp = 0; }
               addNotification(`${targetUnit ? UNITS[targetUnit.type.toUpperCase()].name : BUILDINGS[targetBuilding.type].name} destroyed`);
+              Sound.playDeath();
             }
           }
         } else {
           u.x += dx / dist * u.speed * dt;
           u.y += dy / dist * u.speed * dt;
+        }
+      } else if (u.task === "attackMove") {
+        const enemy = gameState.units.find(v => v.playerIndex !== u.playerIndex && v.alive && distance(u.x, u.y, v.x, v.y) <= u.range + 1);
+        if (enemy) {
+          unitAttack(u, "unit", enemy.id);
+        } else if (u.movePath && u.movePathIndex < u.movePath.length) {
+          const wp = u.movePath[u.movePathIndex];
+          const dx = wp.x - u.x;
+          const dy = wp.y - u.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 0.3) {
+            u.movePathIndex++;
+            if (u.movePathIndex >= u.movePath.length) {
+              u.task = "idle";
+              u.movePath = null;
+              advanceCommand(u);
+            }
+          } else {
+            u.x += dx / dist * u.speed * dt;
+            u.y += dy / dist * u.speed * dt;
+          }
+        } else if (u.targetX !== undefined && u.targetY !== undefined) {
+          const dx = u.targetX - u.x;
+          const dy = u.targetY - u.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 0.3) {
+            u.task = "idle";
+            advanceCommand(u);
+          } else {
+            u.x += dx / dist * u.speed * dt;
+            u.y += dy / dist * u.speed * dt;
+          }
+        } else {
+          u.task = "idle";
+          advanceCommand(u);
         }
       } else if (u.task === "move") {
         if (u.movePath && u.movePathIndex < u.movePath.length) {
@@ -143,6 +182,7 @@ function updateUnits(dt) {
             if (u.movePathIndex >= u.movePath.length) {
               u.task = "idle";
               u.movePath = null;
+              advanceCommand(u);
             }
           } else {
             u.x += dx / dist * u.speed * dt;
@@ -154,12 +194,17 @@ function updateUnits(dt) {
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < 0.3) {
             u.task = "idle";
+            advanceCommand(u);
           } else {
             u.x += dx / dist * u.speed * dt;
             u.y += dy / dist * u.speed * dt;
           }
         }
       } else if (u.task === "idle") {
+        advanceCommand(u);
+        if (u.task !== "idle") {
+          continue;
+        }
         if (u.type === "peasant") {
           u.task = "move";
           u.movePath = findPath(Math.floor(u.x), Math.floor(u.y), Math.floor(u.homeX), Math.floor(u.homeY));
@@ -205,6 +250,41 @@ function unitRepair(unit, buildingId) {
   unit.attackType = "building";
   unit.task = "repair";
   unit.gatherTimer = 0;
+}
+
+function unitStop(unit) {
+  if (!unit || !unit.alive) return;
+  unit.task = "idle";
+  unit.targetX = unit.x;
+  unit.targetY = unit.y;
+  unit.attackTarget = null;
+  unit.attackType = null;
+  unit.gatherType = null;
+  unit.gatherDone = false;
+  unit.movePath = null;
+  unit.movePathIndex = 0;
+  unit.commandQueue = [];
+}
+
+function unitAttackMove(unit, tx, ty) {
+  if (!unit || !unit.alive) return;
+  unit.task = "attackMove";
+  unit.targetX = tx;
+  unit.targetY = ty;
+  unit.movePath = findPath(Math.floor(unit.x), Math.floor(unit.y), Math.floor(tx), Math.floor(ty));
+  if (unit.movePath) unit.movePathIndex = 1;
+  else { unit.movePath = null; unit.movePathIndex = 0; }
+}
+
+function advanceCommand(u) {
+  if (!u.commandQueue.length) return;
+  const cmd = u.commandQueue.shift();
+  if (cmd.type === "move") unitMove(u, cmd.tx, cmd.ty);
+  else if (cmd.type === "attack") unitAttack(u, cmd.targetType, cmd.targetId);
+  else if (cmd.type === "attackMove") unitAttackMove(u, cmd.tx, cmd.ty);
+  else if (cmd.type === "gather") unitGather(u, cmd.resType);
+  else if (cmd.type === "repair") unitRepair(u, cmd.buildingId);
+  else if (cmd.type === "stop") unitStop(u);
 }
 
 // Enhanced health bar with gradient and outline
@@ -423,3 +503,6 @@ window.unitAttack = unitAttack;
 window.unitMove = unitMove;
 window.unitGather = unitGather;
 window.unitRepair = unitRepair;
+window.unitStop = unitStop;
+window.unitAttackMove = unitAttackMove;
+window.advanceCommand = advanceCommand;

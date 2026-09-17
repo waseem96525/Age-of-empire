@@ -37,6 +37,7 @@ function collectResource(unit) {
     node.amount--;
     if (node.amount <= 0) node.depleted = true;
     wallet[unit.gatherType] += 1;
+    Sound.playCollect();
     unit.gatherTimer = 0;
     unit.gatherDone = true;
   }
