@@ -37,6 +37,15 @@ function createUnit(type, x, y, playerIndex, wallet, popObj, isFree = false) {
     // Enhanced: squish animation for attacks
     squish: 0,
     commandQueue: [],
+    // Veteran level system (0-3)
+    veteran: 0,
+    // Garrison system
+    garrisonedIn: null,
+    // Combat feedback
+    lastDamage: 0,
+    lastDamageTime: 0,
+    // Movement animation
+    facing: 0
   };
   if (unit.type === "peasant") {
     unit.gatherType = "food";
@@ -45,6 +54,145 @@ function createUnit(type, x, y, playerIndex, wallet, popObj, isFree = false) {
     if (res) { unit.targetX = res.x; unit.targetY = res.y; }
   }
   return unit;
+}
+
+// Upgrade a unit to veteran level (costs resources, increases stats)
+function upgradeUnit(unit) {
+  if (!unit || !unit.alive || unit.veteran >= 3) return false;
+  const cost = getUpgradeCost(unit.type, unit.veteran + 1);
+  if (!canAfford(gameState.resources, cost)) return false;
+  spendResources(gameState.resources, cost);
+  unit.veteran++;
+  const bonus = 1 + unit.veteran * 0.15; // 15% per level
+  unit.hp = Math.floor(UNITS[unit.type.toUpperCase()].hp * bonus);
+  unit.maxHp = unit.hp;
+  unit.attack = Math.floor(UNITS[unit.type.toUpperCase()].attack * bonus);
+  unit.armor = Math.floor(UNITS[unit.type.toUpperCase()].armor * bonus);
+  unit.speed *= 1.05;
+  addNotification(`${UNITS[unit.type.toUpperCase()].name} promoted to Veteran Lv.${unit.veteran}`);
+  addParticle(unit.x * TILE_SIZE + TILE_SIZE / 2, unit.y * TILE_SIZE + TILE_SIZE / 2, "#ffd700", 20);
+  Sound.playTrain();
+  return true;
+}
+
+function getUpgradeCost(type, level) {
+  const def = UNITS[type.toUpperCase()];
+  if (!def) return null;
+  const base = def.cost;
+  return {
+    food: Math.round(base.food * 0.4 * level),
+    wood: Math.round((base.wood || 0) * 0.4 * level),
+    gold: Math.round((base.gold || 0) * 0.4 * level),
+    stone: Math.round((base.stone || 0) * 0.4 * level)
+  };
+}
+
+// Garrison a unit into a building for defense
+function garrisonUnit(unit, buildingId) {
+  if (!unit || !unit.alive) return false;
+  const building = gameState.buildings.find(b => b.id === buildingId);
+  if (!building || building.playerIndex !== unit.playerIndex) return false;
+  if (building.garrisonCount === undefined) building.garrisonCount = 0;
+  if (building.garrisonCount >= 5) { addNotification("Building garrison is full"); return false; }
+  building.garrisonCount++;
+  unit.garrisonedIn = buildingId;
+  unit.alive = false;
+  // Boost building attack
+  building.garrisonAttack = (building.garrisonAttack || 0) + unit.attack;
+  addNotification(`${UNITS[unit.type.toUpperCase()].name} garrisoned`);
+  addParticle(building.x * TILE_SIZE + TILE_SIZE / 2, building.y * TILE_SIZE + TILE_SIZE / 2, "#4CAF50", 10);
+  Sound.playTrain();
+  return true;
+}
+
+// Release a garrisoned unit
+function ungarrison(building) {
+  if (!building || !building.garrisonCount || building.garrisonCount <= 0) return;
+  const released = [];
+  for (const u of gameState.units) {
+    if (u.garrisonedIn === building.id && !u.alive) {
+      u.alive = true;
+      u.x = building.x + (Math.random() - 0.5) * 2;
+      u.y = building.y + (Math.random() - 0.5) * 2;
+      building.garrisonAttack = Math.max(0, (building.garrisonAttack || 0) - u.attack);
+      building.garrisonCount--;
+      released.push(u);
+    }
+  }
+  if (released.length > 0) {
+    addNotification(`Released ${released.length} garrisoned unit(s)`);
+  }
+}
+
+// Floating damage text
+function addDamageText(x, y, damage, isCrit) {
+  gameState.floatTexts = gameState.floatTexts || [];
+  gameState.floatTexts.push({
+    x, y,
+    text: Math.floor(damage),
+    life: 1,
+    color: isCrit ? "#ff4444" : "#ffffff",
+    vy: -2
+  });
+}
+
+// Projectile system for archers
+function addProjectile(fromX, fromY, toX, toY, color, damage, targetId, sourceId) {
+  gameState.projectiles = gameState.projectiles || [];
+  gameState.projectiles.push({
+    fromX, fromY, toX, toY,
+    x: fromX, y: fromY,
+    color, damage,
+    targetId, sourceId,
+    speed: 6,
+    life: 1
+  });
+}
+
+function updateProjectiles(dt) {
+  if (!gameState.projectiles) return;
+  gameState.projectiles = gameState.projectiles.filter(p => {
+    const dx = p.toX - p.x;
+    const dy = p.toY - p.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 0.3) {
+      // Hit target
+      const target = gameState.units.find(u => u.id === p.targetId);
+      if (target && target.alive) {
+        target.hp -= p.damage;
+        addDamageText(target.x, target.y, p.damage, false);
+        addParticle(target.x * TILE_SIZE + TILE_SIZE / 2, target.y * TILE_SIZE + TILE_SIZE / 2, "#ff9800", 4);
+        if (target.hp <= 0) {
+          target.alive = false;
+          gameState.population -= target.pop;
+          addNotification(`${UNITS[target.type.toUpperCase()].name} destroyed`);
+          Sound.playDeath();
+        }
+      }
+      return false;
+    }
+    p.x += dx / dist * p.speed * dt;
+    p.y += dy / dist * p.speed * dt;
+    p.life -= dt * 2;
+    return p.life > 0;
+  });
+}
+
+function renderProjectiles(ctx) {
+  if (!gameState.projectiles) return;
+  for (const p of gameState.projectiles) {
+    const pos = getWorldToScreen(p.x, p.y);
+    const ts = TILE_SIZE * gameState.camera.zoom;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, Math.max(2, ts * 0.06), 0, Math.PI * 2);
+    ctx.fill();
+    // Trail
+    ctx.fillStyle = p.color + "80";
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, Math.max(1, ts * 0.03), 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 function findNearestResource(x, y, type) {
@@ -63,10 +211,17 @@ function updateUnits(dt) {
     u.attackTimer = Math.max(0, u.attackTimer - dt);
     u.gatherTimer = Math.max(0, u.gatherTimer - dt);
     u.animFrame += dt * 8; // Animation speed
-    
+
     // Squish recovery
     u.squish = Math.max(0, u.squish - dt * 3);
-    
+
+    // Bleed effect (samurai DoT)
+    if (u.bleedTimer > 0) {
+      u.bleedTimer -= dt;
+      u.hp -= 2;
+      if (u.hp <= 0) u.alive = false;
+    }
+
     if (u.playerIndex === 0) {
       if (u.task === "gather" && u.gatherType) {
         const dx = u.targetX - u.x;
@@ -117,20 +272,78 @@ function updateUnits(dt) {
         const dx = target.x - u.x;
         const dy = target.y - u.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist <= u.range + 0.5) {
+        const effectiveRange = u.type === "archer" ? u.range + 0.5 : u.range + 0.5;
+        if (dist <= effectiveRange) {
           if (u.attackTimer <= 0) {
-            const dmg = Math.max(1, u.attack - (target.armor || 0));
-            target.hp -= dmg;
-            u.attackTimer = 1;
-            u.squish = 0.3;
-            Sound.playAttack();
-            addParticle(target.x * TILE_SIZE + TILE_SIZE / 2, target.y * TILE_SIZE + TILE_SIZE / 2, "#f44336", 5);
-            if (target.hp <= 0) {
-              if (targetUnit) { targetUnit.alive = false; gameState.population -= targetUnit.pop; }
-              if (targetBuilding) { targetBuilding.hp = 0; }
-              addNotification(`${targetUnit ? UNITS[targetUnit.type.toUpperCase()].name : BUILDINGS[targetBuilding.type].name} destroyed`);
-              Sound.playDeath();
+            // Archer: ranged projectile attack
+            if (u.type === "archer") {
+              const dmg = Math.max(1, u.attack - (target.armor || 0));
+              addProjectile(u.x, u.y, target.x, target.y, "#8B4513", dmg, target.id, u.id);
+              u.attackTimer = 0.8;
+              u.squish = 0.15;
+              addParticle(u.x * TILE_SIZE + TILE_SIZE / 2, u.y * TILE_SIZE + TILE_SIZE / 2, "#ff9800", 3);
             }
+            // Samurai: melee with bleed
+            else if (u.type === "samurai") {
+              let dmg = Math.max(1, u.attack - (target.armor || 0));
+              let isCrit = Math.random() < 0.2 + u.veteran * 0.05;
+              if (isCrit) dmg = Math.floor(dmg * 2.5);
+              target.hp -= dmg;
+              target.bleedTimer = (target.bleedTimer || 0) + 3;
+              u.attackTimer = 1;
+              u.squish = 0.3;
+              addDamageText(target.x, target.y, dmg, isCrit);
+              addParticle(target.x * TILE_SIZE + TILE_SIZE / 2, target.y * TILE_SIZE + TILE_SIZE / 2, isCrit ? "#ff4444" : "#C41E3A", isCrit ? 12 : 6);
+              if (target.hp <= 0) {
+                if (targetUnit) { targetUnit.alive = false; gameState.population -= targetUnit.pop; }
+                if (targetBuilding) { targetBuilding.hp = 0; }
+                addNotification(`${targetUnit ? UNITS[targetUnit.type.toUpperCase()].name : BUILDINGS[targetBuilding.type].name} destroyed`);
+                Sound.playDeath();
+              }
+            }
+            // Cavalry: charge attack with knockback and splash
+            else if (u.type === "cavalry") {
+              let dmg = Math.max(1, u.attack * 1.3 - (target.armor || 0)); // bonus vs infantry
+              target.hp -= dmg;
+              // Splash to nearby enemies
+              for (const other of gameState.units) {
+                if (other.playerIndex !== u.playerIndex && other.alive && other.id !== target.id) {
+                  if (distance(other.x, other.y, target.x, target.y) < 1.0) {
+                    other.hp -= Math.floor(dmg * 0.5);
+                    addDamageText(other.x, other.y, Math.floor(dmg * 0.5), false);
+                    if (other.hp <= 0) other.alive = false;
+                  }
+                }
+              }
+              u.attackTimer = 1.2;
+              u.squish = 0.4;
+              addDamageText(target.x, target.y, Math.floor(dmg), false);
+              addParticle(target.x * TILE_SIZE + TILE_SIZE / 2, target.y * TILE_SIZE + TILE_SIZE / 2, "#4169E1", 8);
+              if (target.hp <= 0) {
+                if (targetUnit) { targetUnit.alive = false; gameState.population -= targetUnit.pop; }
+                if (targetBuilding) { targetBuilding.hp = 0; }
+                addNotification(`${targetUnit ? UNITS[targetUnit.type.toUpperCase()].name : BUILDINGS[targetBuilding.type].name} destroyed`);
+                Sound.playDeath();
+              }
+            }
+            // Warrior: basic melee
+            else {
+              let dmg = Math.max(1, u.attack - (target.armor || 0));
+              let isCrit = Math.random() < 0.12;
+              if (isCrit) dmg = Math.floor(dmg * 1.8);
+              target.hp -= dmg;
+              u.attackTimer = 1;
+              u.squish = 0.3;
+              addDamageText(target.x, target.y, dmg, isCrit);
+              addParticle(target.x * TILE_SIZE + TILE_SIZE / 2, target.y * TILE_SIZE + TILE_SIZE / 2, isCrit ? "#ff4444" : "#8B0000", isCrit ? 8 : 4);
+              if (target.hp <= 0) {
+                if (targetUnit) { targetUnit.alive = false; gameState.population -= targetUnit.pop; }
+                if (targetBuilding) { targetBuilding.hp = 0; }
+                addNotification(`${targetUnit ? UNITS[targetUnit.type.toUpperCase()].name : BUILDINGS[targetBuilding.type].name} destroyed`);
+                Sound.playDeath();
+              }
+            }
+            Sound.playAttack();
           }
         } else {
           u.x += dx / dist * u.speed * dt;
@@ -274,6 +487,53 @@ function unitAttackMove(unit, tx, ty) {
   unit.movePath = findPath(Math.floor(unit.x), Math.floor(unit.y), Math.floor(tx), Math.floor(ty));
   if (unit.movePath) unit.movePathIndex = 1;
   else { unit.movePath = null; unit.movePathIndex = 0; }
+}
+
+// Combat formations - arrange selected units into tactical patterns
+function setFormation(units, tx, ty, formation) {
+  if (!units || units.length === 0) return;
+  const leader = units[0];
+  const angle = Math.atan2(ty - leader.y, tx - leader.x);
+  const spacing = 0.8;
+  for (let i = 0; i < units.length; i++) {
+    const u = units[i];
+    if (!u.alive) continue;
+    let offset;
+    const col = Math.floor(i / 3);
+    const row = i % 3;
+    switch (formation) {
+      case "line":
+        // Single line facing enemy
+        offset = { x: Math.cos(angle + Math.PI/2) * (row - 1) * spacing, y: Math.sin(angle + Math.PI/2) * (row - 1) * spacing };
+        break;
+      case "wedge":
+        // V-formation pointing at target
+        offset = { x: Math.cos(angle) * col * spacing, y: Math.sin(angle) * col * spacing + (row - 1) * spacing };
+        break;
+      case "box":
+        // Defensive square
+        const side = Math.ceil(Math.sqrt(units.length));
+        const cx = (i % side) - side/2;
+        const cy = Math.floor(i / side) - side/2;
+        offset = { x: cx * spacing, y: cy * spacing };
+        break;
+      case "scatter":
+      default:
+        offset = { x: (Math.random() - 0.5) * 2, y: (Math.random() - 0.5) * 2 };
+    }
+    const targetX = tx + offset.x;
+    const targetY = ty + offset.y;
+    unitMove(u, targetX, targetY);
+    u.task = "attackMove";
+  }
+}
+
+function setAggressiveFormation(units, tx, ty) {
+  setFormation(units, tx, ty, "wedge");
+}
+
+function setDefensiveFormation(units, tx, ty) {
+  setFormation(units, tx, ty, "box");
 }
 
 function advanceCommand(u) {
@@ -455,7 +715,17 @@ function drawUnitSilhouette(ctx, u, cx, cy, ts) {
   ctx.restore();
 }
 
-// Enhanced renderUnits with selection glow and animations
+// Floating damage text update
+function updateFloatTexts(dt) {
+  if (!gameState.floatTexts) return;
+  gameState.floatTexts = gameState.floatTexts.filter(t => {
+    t.life -= dt * 2;
+    t.y += t.vy * dt;
+    return t.life > 0;
+  });
+}
+
+// Enhanced renderUnits with selection glow, animations, floating text, and projectiles
 function renderUnits(ctx) {
   for (const u of gameState.units) {
     if (!u.alive) continue;
@@ -464,34 +734,66 @@ function renderUnits(ctx) {
     const isSelected = gameState.selectedUnits.some(v => v.id === u.id);
     const cx = pos.x + ts / 2;
     const cy = pos.y + ts * 0.54;
-    
+
     drawUnitSilhouette(ctx, u, cx, cy, ts);
     drawUnitHealthBar(ctx, u, cx, pos.y - ts * 0.08, ts);
-    
+
+    // Veteran level indicator
+    if (u.veteran > 0) {
+      ctx.fillStyle = "#ffd700";
+      ctx.font = `bold ${Math.max(8, ts * 0.2)}px sans-serif`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText("★".repeat(u.veteran), pos.x + ts * 0.05, pos.y);
+    }
+
+    // Archer range indicator when selected
+    if (isSelected && u.type === "archer") {
+      ctx.strokeStyle = "rgba(255,140,0,0.2)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, u.range * ts, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
     // Enhanced selection indicator with pulsing glow
     if (isSelected) {
       const pulse = 0.7 + Math.sin(u.animFrame) * 0.3;
-      
+
       // Outer glow
       ctx.strokeStyle = `rgba(245, 214, 106, ${pulse * 0.3})`;
       ctx.lineWidth = Math.max(4, ts * 0.08);
       ctx.beginPath();
       ctx.ellipse(cx, pos.y + ts * 0.72, ts * 0.31, ts * 0.14, 0, 0, Math.PI * 2);
       ctx.stroke();
-      
+
       // Inner glow
       ctx.strokeStyle = `rgba(245, 214, 106, ${pulse * 0.6})`;
       ctx.lineWidth = Math.max(2, ts * 0.05);
       ctx.beginPath();
       ctx.ellipse(cx, pos.y + ts * 0.72, ts * 0.31, ts * 0.14, 0, 0, Math.PI * 2);
       ctx.stroke();
-      
+
       // Core selection line
       ctx.strokeStyle = "rgba(245, 214, 106, 0.9)";
       ctx.lineWidth = Math.max(1, ts * 0.025);
       ctx.beginPath();
       ctx.ellipse(cx, pos.y + ts * 0.72, ts * 0.31, ts * 0.14, 0, 0, Math.PI * 2);
       ctx.stroke();
+    }
+  }
+
+  // Floating damage text
+  if (gameState.floatTexts) {
+    for (const t of gameState.floatTexts) {
+      const pos = getWorldToScreen(t.x, t.y);
+      ctx.fillStyle = t.color;
+      ctx.globalAlpha = Math.max(0, t.life);
+      ctx.font = `bold ${Math.max(10, 40 * 0.25)}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(t.text, pos.x, pos.y);
+      ctx.globalAlpha = 1;
     }
   }
 }
@@ -506,3 +808,15 @@ window.unitRepair = unitRepair;
 window.unitStop = unitStop;
 window.unitAttackMove = unitAttackMove;
 window.advanceCommand = advanceCommand;
+window.upgradeUnit = upgradeUnit;
+window.getUpgradeCost = getUpgradeCost;
+window.garrisonUnit = garrisonUnit;
+window.ungarrison = ungarrison;
+window.addDamageText = addDamageText;
+window.updateFloatTexts = updateFloatTexts;
+window.addProjectile = addProjectile;
+window.updateProjectiles = updateProjectiles;
+window.renderProjectiles = renderProjectiles;
+window.setFormation = setFormation;
+window.setAggressiveFormation = setAggressiveFormation;
+window.setDefensiveFormation = setDefensiveFormation;

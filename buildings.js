@@ -29,36 +29,63 @@ function createBuilding(type, x, y, playerIndex, wallet) {
     addParticle(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2, "#f0c040", 15);
     addParticle(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2, "#fff", 8);
     Sound.playBuild();
+    // Village XP for building
+    if (window.addVillageXP) window.addVillageXP(10);
+    gameState.buildingsBuilt++;
   }
   return building;
 }
 
+// Village level system - gives bonuses as your village grows
+function addVillageXP(amount) {
+  gameState.villageXP += amount;
+  while (gameState.villageXP >= gameState.nextLevelXP) {
+    gameState.villageXP -= gameState.nextLevelXP;
+    gameState.villageLevel++;
+    gameState.nextLevelXP = Math.floor(gameState.nextLevelXP * 1.5);
+    // Village level bonuses
+    const bonus = gameState.villageLevel * 0.05; // 5% per level
+    gameState.maxPopulation += 25;
+    addNotification(`Village reached Level ${gameState.villageLevel}! +${Math.round(bonus * 100)}% economy, +25 pop`);
+    addParticle(MAP_WIDTH / 2 * TILE_SIZE, MAP_HEIGHT / 2 * TILE_SIZE, "#ffd700", 50);
+    Sound.playVictory();
+  }
+}
+
+function getVillageBonus() {
+  return 1 + (gameState.villageLevel - 1) * 0.05;
+}
+
 // New function to upgrade a building
 function upgradeBuilding(building) {
-  if (!building || building.level >= 3) return false; // Max level 3
-  const cost = building.upgradeCost;
+  if (!building || building.level >= 3) return false;
+  const levelMult = 1 + (building.level - 1) * 0.5;
+  const cost = {
+    food: Math.round(building.upgradeCost.food * levelMult),
+    wood: Math.round(building.upgradeCost.wood * levelMult),
+    gold: Math.round(building.upgradeCost.gold * levelMult),
+    stone: Math.round(building.upgradeCost.stone * levelMult)
+  };
   if (!canAfford(gameState.resources, cost)) return false;
   
   spendResources(gameState.resources, cost);
   
-  // Increase level and stats
   building.level++;
-  const levelMultiplier = 1 + (building.level - 1) * 0.3; // 30% increase per level
-  building.hp = Math.floor(building.hp * levelMultiplier);
+  const statMultiplier = 1 + (building.level - 1) * 0.3;
+  building.hp = Math.floor(building.hp * statMultiplier);
   building.maxHp = building.hp;
-  building.radius = Math.floor(building.radius * levelMultiplier * 0.5) + Math.floor(building.radius * 0.5); // Smaller radius increase
-  building.pop = Math.floor(building.pop * levelMultiplier);
+  building.radius = Math.floor(building.radius * statMultiplier * 0.5) + Math.floor(building.radius * 0.5);
+  building.pop = Math.floor(building.pop * statMultiplier);
   
-  // Update max population if player 0
   if (building.playerIndex === 0) {
-    gameState.maxPopulation = Math.max(0, gameState.maxPopulation - (building.pop / levelMultiplier)) + building.pop;
+    gameState.maxPopulation = Math.max(0, gameState.maxPopulation - (building.pop / statMultiplier)) + building.pop;
   }
   
-  // Visual feedback
-  addNotification(`${BUILDINGS[building.type].name} upgraded to Level ${building.level}!`);
+addNotification(`${BUILDINGS[building.type].name} upgraded to Level ${building.level}!`);
   addParticle(building.x * TILE_SIZE + TILE_SIZE / 2, building.y * TILE_SIZE + TILE_SIZE / 2, "#4CAF50", 20);
   addParticle(building.x * TILE_SIZE + TILE_SIZE / 2, building.y * TILE_SIZE + TILE_SIZE / 2, "#fff", 10);
-  
+  // Village XP for building upgrade
+  if (window.addVillageXP) window.addVillageXP(15);
   return true;
 }
 
@@ -90,6 +117,9 @@ function updateBuildings(dt) {
           addNotification(`${unitDef.name} trained`);
           addParticle(b.x * TILE_SIZE + TILE_SIZE / 2, b.y * TILE_SIZE + TILE_SIZE / 2, "#4CAF50", 12);
           Sound.playTrain();
+          // Village XP for training units
+          if (window.addVillageXP) window.addVillageXP(5);
+          gameState.unitsTrained++;
         }
       }
     }
@@ -394,7 +424,7 @@ function drawBuildingShape(ctx, b, pos, ts, base, roof, trim, construction) {
   ctx.restore();
 }
 
-// Enhanced renderBuildings with level-based effects
+// Enhanced renderBuildings with level-based effects, garrison, and glow
 function renderBuildings(ctx) {
   const light = window.getAmbientLight ? window.getAmbientLight() : 1;
   for (const b of gameState.buildings) {
@@ -456,6 +486,15 @@ function renderBuildings(ctx) {
     drawBuildingShape(ctx, b, pos, ts, baseColor, roofColor, accentColor, construction);
     drawBuildingHealthBar(ctx, b, pos.x + ts * 0.1, pos.y - ts * 0.08, ts * 0.8, ts);
 
+    // Garrison indicator
+    if (b.garrisonCount > 0) {
+      ctx.fillStyle = "rgba(240,192,64,0.9)";
+      ctx.font = `bold ${Math.max(8, ts * 0.18)}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(`⊕${b.garrisonCount}`, pos.x + ts / 2, pos.y + ts * 0.85);
+    }
+
     // Enhanced selection effects
     if (isPlayer && gameState.selectedBuilding === b && BUILDINGS[b.type].produces.length > 0) {
       const rally = getWorldToScreen(b.rallyX, b.rallyY);
@@ -512,3 +551,5 @@ window.createBuilding = createBuilding;
 window.updateBuildings = updateBuildings;
 window.renderBuildings = renderBuildings;
 window.upgradeBuilding = upgradeBuilding;
+window.addVillageXP = addVillageXP;
+window.getVillageBonus = getVillageBonus;

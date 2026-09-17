@@ -1,28 +1,111 @@
 function updateUI() {
   const r = gameState.resources;
+  const rates = getProductionRates ? getProductionRates() : { food: 0, wood: 0, gold: 0, stone: 0 };
   document.getElementById("food-val").textContent = Math.floor(r.food);
   document.getElementById("wood-val").textContent = Math.floor(r.wood);
   document.getElementById("gold-val").textContent = Math.floor(r.gold);
   document.getElementById("stone-val").textContent = Math.floor(r.stone);
   document.getElementById("pop-val").textContent = `${gameState.population}/${gameState.maxPopulation}`;
+  const rateEls = ["food-rate", "wood-rate", "gold-rate", "stone-rate"];
+  const rateKeys = ["food", "wood", "gold", "stone"];
+  for (let i = 0; i < rateEls.length; i++) {
+    const el = document.getElementById(rateEls[i]);
+    if (el) el.textContent = "+" + rates[rateKeys[i]].toFixed(1) + "/s";
+  }
+
+  // Village status panel
+  const vLevel = document.getElementById("village-lvl");
+  const vXPFill = document.getElementById("village-xp-fill");
+  const vPop = document.getElementById("village-pop");
+  const vBuildings = document.getElementById("village-buildings");
+  if (vLevel) vLevel.textContent = gameState.villageLevel;
+  if (vXPFill) vXPFill.style.width = Math.min(100, (gameState.villageXP / gameState.nextLevelXP) * 100) + "%";
+  if (vPop) vPop.textContent = `Pop: ${gameState.population}/${gameState.maxPopulation}`;
+  if (vBuildings) vBuildings.textContent = `Buildings: ${gameState.buildingsBuilt}`;
+
   updateResourceEditor(r);
   const selectedInfo = document.getElementById("selected-info");
+  const unitActions = document.getElementById("unit-actions");
+  const formationControls = document.getElementById("formation-controls");
+  const unitCounter = document.getElementById("unit-counter");
+
+  // Unit counter
+  if (unitCounter) {
+    const counts = { peasant: 0, warrior: 0, archer: 0, samurai: 0, cavalry: 0 };
+    for (const u of gameState.units) {
+      if (u.alive && u.playerIndex === 0) counts[u.type]++;
+    }
+    document.getElementById("unit-count-peasant").textContent = "P:" + counts.peasant;
+    document.getElementById("unit-count-warrior").textContent = "W:" + counts.warrior;
+    document.getElementById("unit-count-archer").textContent = "A:" + counts.archer;
+    document.getElementById("unit-count-samurai").textContent = "S:" + counts.samurai;
+    document.getElementById("unit-count-cavalry").textContent = "C:" + counts.cavalry;
+  }
+
   if (gameState.buildMode) {
     const def = BUILDINGS[gameState.buildMode];
     selectedInfo.innerHTML = `<h4>Build: ${def.name}</h4><p>Cost: ${formatCost(def.cost)}</p><p>Right-click to cancel</p>`;
+    if (unitActions) unitActions.style.display = "none";
+    if (formationControls) formationControls.style.display = "none";
   } else if (gameState.selectedUnits.length === 1) {
     const u = gameState.selectedUnits[0];
     const def = UNITS[u.type.toUpperCase()];
-    selectedInfo.innerHTML = `<h4>${u.symbol} ${def.name}</h4><p>HP: ${Math.floor(u.hp)}/${u.maxHp}</p><p>ATK: ${u.attack} | ARM: ${u.armor}</p><p>Task: ${u.task}</p>`;
+    const vetCost = window.getUpgradeCost ? window.getUpgradeCost(u.type, u.veteran + 1) : null;
+    const canVet = u.veteran < 3 && vetCost && canAfford(gameState.resources, vetCost);
+    const vetBtn = canVet
+      ? `<button id="upgrade-unit-btn" class="action-btn" type="button">Upgrade to Lv.${u.veteran + 1} (${formatCost(vetCost)})</button>`
+      : `<button id="upgrade-unit-btn" class="action-btn disabled" type="button" disabled>Upgrade (Max Lv.3)</button>`;
+    const garrisonBtn = `<button id="garrison-btn" class="action-btn" type="button">Garrison (G)</button>`;
+    const stopBtn = `<button id="stop-btn" class="action-btn" type="button">Stop (H)</button>`;
+    selectedInfo.innerHTML = `<h4>${u.symbol} ${def.name} ${u.veteran > 0 ? "★".repeat(u.veteran) : ""}</h4><p>HP: ${Math.floor(u.hp)}/${u.maxHp}</p><p>ATK: ${u.attack} | ARM: ${u.armor}</p><p>Range: ${u.range}</p><p>Task: ${u.task}</p>${vetBtn}${garrisonBtn}${stopBtn}`;
+    if (unitActions) unitActions.style.display = "flex";
+    if (formationControls) formationControls.style.display = "flex";
   } else if (gameState.selectedUnits.length > 1) {
-    selectedInfo.innerHTML = `<h4>${gameState.selectedUnits.length} Units Selected</h4>`;
+    const vetCount = gameState.selectedUnits.filter(u => u.veteran < 3).length;
+    selectedInfo.innerHTML = `<h4>${gameState.selectedUnits.length} Units Selected</h4><p>${vetCount} can be upgraded</p>`;
+    if (unitActions) unitActions.style.display = "none";
+    if (formationControls) formationControls.style.display = "flex";
   } else if (gameState.selectedBuilding) {
     const b = gameState.selectedBuilding;
     const def = BUILDINGS[b.type];
     const rallyHint = def.produces.length > 0 ? "<p>Right-click map to set rally point</p>" : "";
-    selectedInfo.innerHTML = `<h4>${def.name}</h4><p>HP: ${Math.floor(b.hp)}/${b.maxHp}</p><p>Queue: ${b.produceQueue.length > 0 ? UNITS[b.produceQueue[0].toUpperCase()].name : "Empty"}</p>${rallyHint}`;
+    let upgradeHtml = "";
+    if (b.level < 3 && b.playerIndex === 0) {
+      const levelMult = 1 + (b.level - 1) * 0.5;
+      const uc = {
+        food: Math.round(b.upgradeCost.food * levelMult),
+        wood: Math.round(b.upgradeCost.wood * levelMult),
+        gold: Math.round(b.upgradeCost.gold * levelMult),
+        stone: Math.round(b.upgradeCost.stone * levelMult)
+      };
+      const canUp = canAfford(gameState.resources, uc) && b.level < 3;
+      upgradeHtml = `<p><button id="upgrade-building-btn" class="action-btn ${canUp ? '' : 'disabled'}" ${canUp ? '' : 'disabled'}>Upgrade to Lv.${b.level + 1} (${formatCost(uc)})</button></p>`;
+    }
+    let techHtml = "";
+    if (b.type === "TOWN_CENTER" && b.playerIndex === 0) {
+      techHtml = "<p><strong>Research:</strong></p>";
+      const techNames = { food: "Crop Rotation", wood: "Efficient Logging", gold: "Mining Techniques", stone: "Quarrying" };
+      const techCost = [
+        { food: 100, wood: 50, gold: 50, stone: 25 },
+        { food: 200, wood: 100, gold: 100, stone: 75 },
+        { food: 400, wood: 200, gold: 200, stone: 150 }
+      ];
+      const techKeys = ["food", "wood", "gold", "stone"];
+      for (const tk of techKeys) {
+        const tl = (gameState.techLevels || { food: 0, wood: 0, gold: 0, stone: 0 })[tk] || 0;
+        if (tl < 3) {
+          const tc = techCost[tl];
+          const canRes = canAfford(gameState.resources, tc);
+          techHtml += `<button class="tech-btn ${canRes ? '' : 'disabled'}" data-tech="${tk}" ${canRes ? '' : 'disabled'}>${techNames[tk]} Lv.${tl}→${tl + 1} (${formatCost(tc)})</button> `;
+        }
+      }
+    }
+    selectedInfo.innerHTML = `<h4>${def.name} Lv.${b.level}</h4><p>HP: ${Math.floor(b.hp)}/${b.maxHp}</p><p>Queue: ${b.produceQueue.length > 0 ? UNITS[b.produceQueue[0].toUpperCase()].name : "Empty"}</p>${rallyHint}${upgradeHtml}${techHtml}`;
+    if (unitActions) unitActions.style.display = "none";
   } else {
     selectedInfo.innerHTML = `<h4>No Selection</h4><p>Click units or buildings to select</p>`;
+    if (unitActions) unitActions.style.display = "none";
+    if (formationControls) formationControls.style.display = "none";
   }
   updateBuildButtons();
   updateMinimap();
@@ -192,3 +275,35 @@ window.trainUnit = trainUnit;
 window.updateMinimap = updateMinimap;
 window.tileColor = tileColor;
 window.initializeResourceEditor = initializeResourceEditor;
+
+document.addEventListener("click", (e) => {
+  const upgradeBtn = e.target.closest("#upgrade-building-btn");
+  if (upgradeBtn && gameState.selectedBuilding) {
+    const b = gameState.selectedBuilding;
+    if (b.level < 3) {
+      const levelMult = 1 + (b.level - 1) * 0.5;
+      const cost = {
+        food: Math.round(b.upgradeCost.food * levelMult),
+        wood: Math.round(b.upgradeCost.wood * levelMult),
+        gold: Math.round(b.upgradeCost.gold * levelMult),
+        stone: Math.round(b.upgradeCost.stone * levelMult)
+      };
+      if (canAfford(gameState.resources, cost)) {
+        if (window.upgradeBuilding && window.upgradeBuilding(b)) {
+          updateUI();
+        }
+      }
+    }
+    return;
+  }
+  const techBtn = e.target.closest(".tech-btn");
+  if (techBtn) {
+    const resType = techBtn.dataset.tech;
+    if (resType && window.researchTech) {
+      if (window.researchTech(resType)) {
+        updateUI();
+      }
+    }
+    return;
+  }
+});

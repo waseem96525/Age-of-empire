@@ -39,6 +39,39 @@ document.getElementById("save-game-btn").addEventListener("click", saveGame);
 document.getElementById("load-game-btn").addEventListener("click", loadGame);
 document.getElementById("load-game-start-btn").addEventListener("click", loadGame);
 
+// New feature buttons
+const upgradeUnitBtn = document.getElementById("upgrade-unit-btn");
+const garrisonBtn = document.getElementById("garrison-btn");
+const stopBtn = document.getElementById("stop-btn");
+if (upgradeUnitBtn) upgradeUnitBtn.addEventListener("click", () => {
+  const u = gameState.selectedUnits[0];
+  if (u && window.upgradeUnit) window.upgradeUnit(u);
+});
+if (garrisonBtn) garrisonBtn.addEventListener("click", () => {
+  const u = gameState.selectedUnits[0];
+  const b = gameState.selectedBuilding;
+  if (u && b && window.garrisonUnit) window.garrisonUnit(u, b.id);
+  else if (u && window.garrisonUnit) {
+    const tc = gameState.buildings.find(b => b.type === "TOWN_CENTER" && b.playerIndex === 0);
+    if (tc) window.garrisonUnit(u, tc.id);
+  }
+});
+if (stopBtn) stopBtn.addEventListener("click", () => {
+  for (const u of gameState.selectedUnits) unitStop(u);
+});
+
+// Formation buttons
+const formationButtons = document.querySelectorAll(".formation-btn");
+formationButtons.forEach(btn => {
+  btn.addEventListener("click", () => {
+    const formation = btn.dataset.formation;
+    const units = gameState.selectedUnits.filter(u => u.alive);
+    if (units.length > 0 && gameState.hoverTile) {
+      if (window.setFormation) window.setFormation(units, gameState.hoverTile.x, gameState.hoverTile.y, formation);
+    }
+  });
+});
+
 const muteBtn = document.getElementById("mute-btn");
 const musicBtn = document.getElementById("music-btn");
 if (muteBtn) muteBtn.addEventListener("click", () => Sound.toggleMute());
@@ -350,6 +383,7 @@ function render() {
     renderBuildings(ctx);
     renderUnits(ctx);
     renderParticles(ctx);
+    if (window.renderProjectiles) window.renderProjectiles(ctx);
     if (gameState.buildMode && gameState.hoverTile) {
       const pos = getWorldToScreen(gameState.hoverTile.x, gameState.hoverTile.y);
       const ts = TILE_SIZE * gameState.camera.zoom;
@@ -524,6 +558,8 @@ function update(dt) {
   updateBuildings(dt);
   updateUnits(dt);
   updateAI(dt);
+  if (window.updateFloatTexts) window.updateFloatTexts(dt);
+  if (window.updateProjectiles) window.updateProjectiles(dt);
   gameState.particles = gameState.particles.filter(p => {
     p.life -= p.decay * dt * 60;
     p.x += p.vx;

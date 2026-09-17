@@ -58,7 +58,14 @@ let gameState = {
   fogOfWar: [],
   lastTime: 0,
   notifications: [],
-  logTimer: 0
+  logTimer: 0,
+  techLevels: { food: 0, wood: 0, gold: 0, stone: 0 },
+  // Village development tracking
+  villageLevel: 1,
+  buildingsBuilt: 0,
+  unitsTrained: 0,
+  villageXP: 0,
+  nextLevelXP: 100
 };
 
 function initGameState() {
@@ -78,7 +85,14 @@ function initGameState() {
   gameState.aiPlayers = [];
   gameState.fogOfWar = [];
   gameState.buildMode = null;
+  gameState.techLevels = { food: 0, wood: 0, gold: 0, stone: 0 };
+  gameState.villageLevel = 1;
+  gameState.buildingsBuilt = 0;
+  gameState.unitsTrained = 0;
+  gameState.villageXP = 0;
+  gameState.nextLevelXP = 100;
   gameState.isDragging = false;
+  gameState.techLevels = { food: 0, wood: 0, gold: 0, stone: 0 };
   for (let y = 0; y < MAP_HEIGHT; y++) {
     gameState.fogOfWar[y] = [];
     for (let x = 0; x < MAP_WIDTH; x++) {

@@ -54,32 +54,47 @@ function updateAI(dt) {
     if (lumber) ai.resources.wood += dt * 1.5;
     if (mine) { ai.resources.gold += dt * 1; ai.resources.stone += dt * 0.5; }
     ai.buildTimer += dt;
+
+    // Smarter building: prioritize economy then military
     if (ai.buildTimer > 6) {
       ai.buildTimer = 0;
       const count = aiBuildings.length;
+      const needFood = ai.population * 15 > ai.resources.food;
+      const needWood = ai.population * 10 > ai.resources.wood;
+      const needGold = ai.population * 20 > ai.resources.gold;
+
+      // Prioritize: farms first if low food
+      if ((needFood || count < 3) && ai.resources.wood >= 50 && isBuildable(ai.baseX - 3, ai.baseY - 3)) {
+        const b = createBuilding("FARM", ai.baseX - 3, ai.baseY - 3, ai.playerIndex, ai.resources);
+        if (b) { ai.buildings.push(b); gameState.buildings.push(b); }
+      }
+      if ((needWood || count < 4) && ai.resources.wood >= 100 && isBuildable(ai.baseX - 3, ai.baseY + 3)) {
+        const b = createBuilding("LUMBER_CAMP", ai.baseX - 3, ai.baseY + 3, ai.playerIndex, ai.resources);
+        if (b) { ai.buildings.push(b); gameState.buildings.push(b); }
+      }
+      if ((needGold || count < 5) && ai.resources.gold >= 100 && ai.resources.stone >= 100 && isBuildable(ai.baseX + 3, ai.baseY - 3)) {
+        const b = createBuilding("MINE", ai.baseX + 3, ai.baseY - 3, ai.playerIndex, ai.resources);
+        if (b) { ai.buildings.push(b); gameState.buildings.push(b); }
+      }
       if (count < 4 && ai.resources.food >= 100 && ai.resources.wood >= 100 && isBuildable(ai.baseX + 3, ai.baseY + 3)) {
         const b = createBuilding("BARRACKS", ai.baseX + 3, ai.baseY + 3, ai.playerIndex, ai.resources);
         if (b) { ai.buildings.push(b); gameState.buildings.push(b); }
       }
-      if (count < 5 && ai.resources.wood >= 100 && isBuildable(ai.baseX - 3, ai.baseY + 3)) {
-        const b = createBuilding("LUMBER_CAMP", ai.baseX - 3, ai.baseY + 3, ai.playerIndex, ai.resources);
-        if (b) { ai.buildings.push(b); gameState.buildings.push(b); }
-      }
-      if (count < 6 && ai.resources.gold >= 100 && ai.resources.stone >= 100 && isBuildable(ai.baseX + 3, ai.baseY - 3)) {
-        const b = createBuilding("MINE", ai.baseX + 3, ai.baseY - 3, ai.playerIndex, ai.resources);
-        if (b) { ai.buildings.push(b); gameState.buildings.push(b); }
-      }
-      if (count < 7 && ai.resources.food >= 50 && ai.resources.wood >= 100 && isBuildable(ai.baseX - 3, ai.baseY - 3)) {
-        const b = createBuilding("FARM", ai.baseX - 3, ai.baseY - 3, ai.playerIndex, ai.resources);
+      if (count < 6 && ai.resources.food >= 100 && ai.resources.wood >= 150 && ai.resources.gold >= 100 && isBuildable(ai.baseX + 5, ai.baseY + 5)) {
+        const b = createBuilding("STABLE", ai.baseX + 5, ai.baseY + 5, ai.playerIndex, ai.resources);
         if (b) { ai.buildings.push(b); gameState.buildings.push(b); }
       }
     }
+
+    // Train peasants continuously
     if (tc && tc.produceQueue.length < 3) {
       const hasPeasant = tc.produceQueue.some(q => q === "peasant");
       if (!hasPeasant && ai.resources.food >= 50 && ai.population < ai.maxPopulation) {
         tc.produceQueue.push("peasant");
       }
     }
+
+    // Train military units
     const queues = [tc, barracks, stable].filter(Boolean);
     for (const q of queues) {
       if (!q || q.produceQueue.length === 0) continue;
@@ -95,21 +110,37 @@ function updateAI(dt) {
         if (aiTrain(ai, target, q)) addNotification(`${PLAYER_NAMES[ai.playerIndex]} trained ${unitDef.name}`);
       }
     }
-    if (ai.buildTimer > 12) {
+
+    // Garrison peasants into Town Center for defense
+    if (tc && tc.garrisonCount < 3) {
+      const untrained = aiUnits.find(u => u.type === "peasant" && u.task === "idle" && !u.garrisonedIn);
+      if (untrained && window.garrisonUnit) {
+        window.garrisonUnit(untrained, tc.id);
+      }
+    }
+
+    // Attack logic: gather military and attack player
+    if (ai.buildTimer > 15) {
       ai.buildTimer = 0;
       const enemyUnits = gameState.units.filter(u => u.playerIndex === 0 && u.alive);
       const enemyBuildings = gameState.buildings.filter(b => b.playerIndex === 0 && b.hp > 0);
-      if (enemyUnits.length > 0 || enemyBuildings.length > 0) {
-        const target = enemyUnits[Math.floor(Math.random() * enemyUnits.length)] || enemyBuildings[Math.floor(Math.random() * enemyBuildings.length)];
-        const attackers = aiUnits.filter(u => u.type !== "peasant").slice(0, 5);
-        const targetType = gameState.units.includes(target) ? "unit" : "building";
+      const military = aiUnits.filter(u => u.type !== "peasant");
+      if ((enemyUnits.length > 0 || enemyBuildings.length > 0) && military.length > 0) {
+        // Prefer attacking enemy units first
+        const target = enemyUnits.length > 0
+          ? enemyUnits[Math.floor(Math.random() * enemyUnits.length)]
+          : enemyBuildings[Math.floor(Math.random() * enemyBuildings.length)];
+        const attackers = military.slice(0, Math.min(8, military.length));
+        const targetType = enemyUnits.includes(target) ? "unit" : "building";
         for (const attacker of attackers) {
           if (target.playerIndex === 0) unitAttack(attacker, targetType, target.id);
         }
       }
     }
+
+    // AI peasants gather resources
     for (const u of aiUnits) {
-      if (u.type !== "peasant") continue;
+      if (u.type !== "peasant" || u.garrisonedIn) continue;
       const res = findNearestResource(u.x, u.y, null);
       if (res) {
         unitGather(u, res.type);

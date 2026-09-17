@@ -4,17 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Asian Dynasty - RTS</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 <div id="game-container">
   <canvas id="gameCanvas"></canvas>
   <div id="ui-overlay">
     <div id="resource-bar" class="resource-bar">
-      <div class="resource food"><span class="res-label">F</span><span class="res-name">Food</span><span class="res-value" id="food-val">500</span></div>
-      <div class="resource wood"><span class="res-label">W</span><span class="res-name">Wood</span><span class="res-value" id="wood-val">300</span></div>
-      <div class="resource gold"><span class="res-label">G</span><span class="res-name">Gold</span><span class="res-value" id="gold-val">200</span></div>
-      <div class="resource stone"><span class="res-label">S</span><span class="res-name">Stone</span><span class="res-value" id="stone-val">150</span></div>
+      <div class="resource food"><span class="res-label">F</span><span class="res-name">Food</span><span class="res-value" id="food-val">500</span><span class="res-rate" id="food-rate">+0.0/s</span></div>
+      <div class="resource wood"><span class="res-label">W</span><span class="res-name">Wood</span><span class="res-value" id="wood-val">300</span><span class="res-rate" id="wood-rate">+0.0/s</span></div>
+      <div class="resource gold"><span class="res-label">G</span><span class="res-name">Gold</span><span class="res-value" id="gold-val">200</span><span class="res-rate" id="gold-rate">+0.0/s</span></div>
+      <div class="resource stone"><span class="res-label">S</span><span class="res-name">Stone</span><span class="res-value" id="stone-val">150</span><span class="res-rate" id="stone-rate">+0.0/s</span></div>
       <div class="resource pop"><span class="res-label">P</span><span class="res-name">Population</span><span class="res-value" id="pop-val">0/100</span></div>
       <div class="save-controls" aria-label="Save controls">
         <button id="save-game-btn" type="button" title="Save current game">Save</button>
@@ -35,10 +35,39 @@
         <div class="build-buttons" id="unit-buttons"></div>
       </div>
     </div>
-    <div id="action-bar" class="action-bar">
-      <div id="selected-info"></div>
-      <div id="game-log"></div>
-    </div>
+<div id="action-bar" class="action-bar">
+  <div id="selected-info"></div>
+  <div id="unit-actions" class="unit-actions" style="display:none; margin-top:8px;">
+    <button id="upgrade-unit-btn" class="action-btn" type="button">Upgrade Unit</button>
+    <button id="garrison-btn" class="action-btn" type="button">Garrison</button>
+    <button id="stop-btn" class="action-btn" type="button">Stop (H)</button>
+  </div>
+  <div id="formation-controls" class="formation-controls" style="display:none; margin-top:8px;">
+    <span class="formation-label">Formation:</span>
+    <button class="formation-btn" data-formation="wedge" title="Wedge (attack)">▲</button>
+    <button class="formation-btn" data-formation="line" title="Line (defend)">━</button>
+    <button class="formation-btn" data-formation="box" title="Box (square)">□</button>
+    <button class="formation-btn" data-formation="scatter" title="Scatter">·</button>
+  </div>
+  <div id="unit-counter" class="unit-counter">
+    <span id="unit-count-peasant">P:0</span>
+    <span id="unit-count-warrior">W:0</span>
+    <span id="unit-count-archer">A:0</span>
+    <span id="unit-count-samurai">S:0</span>
+    <span id="unit-count-cavalry">C:0</span>
+  </div>
+  <div id="game-log"></div>
+</div>
+<div id="village-status" class="village-status">
+  <div class="village-level">Village Lv.<span id="village-lvl">1</span></div>
+  <div class="village-xp-bar">
+    <div id="village-xp-fill" class="village-xp-fill"></div>
+  </div>
+  <div class="village-stats">
+    <span id="village-pop">Pop: 0/50</span>
+    <span id="village-buildings">Buildings: 0</span>
+  </div>
+</div>
     <div id="minimap-container" class="minimap-container">
       <canvas id="minimapCanvas" width="200" height="150"></canvas>
     </div>
@@ -116,14 +145,14 @@
     </div>
   </div>
 </div>
-<script src="sound.js"></script>
-<script src="game.js"></script>
-<script src="map.js"></script>
-<script src="resources.js"></script>
-<script src="buildings.js"></script>
-<script src="units.js"></script>
-<script src="ai.js"></script>
-<script src="ui.js"></script>
-<script src="main.js"></script>
+<script src="sound.js?v=2"></script>
+<script src="game.js?v=2"></script>
+<script src="map.js?v=2"></script>
+<script src="resources.js?v=2"></script>
+<script src="buildings.js?v=2"></script>
+<script src="units.js?v=2"></script>
+<script src="ai.js?v=2"></script>
+<script src="ui.js?v=2"></script>
+<script src="main.js?v=2"></script>
 </body>
 </html>
